@@ -12,11 +12,23 @@ import type { MoltbookService } from "../service";
 
 const moltbookReadAction: Action = {
   name: "MOLTBOOK_READ",
-  similes: ["READ_MOLTBOOK_POST", "VIEW_MOLTBOOK_POST", "GET_MOLTBOOK_POST", "OPEN_MOLTBOOK_POST"],
-  description: "Read a specific Moltbook post with its comments to see the full discussion.",
+  similes: [
+    "READ_MOLTBOOK_POST",
+    "VIEW_MOLTBOOK_POST",
+    "GET_MOLTBOOK_POST",
+    "OPEN_MOLTBOOK_POST",
+  ],
+  description:
+    "Read a specific Moltbook post with its comments to see the full discussion.",
 
-  validate: async (runtime: IAgentRuntime, message: Memory, _state?: State): Promise<boolean> => {
-    const service = runtime.getService(MOLTBOOK_SERVICE_NAME) as MoltbookService;
+  validate: async (
+    runtime: IAgentRuntime,
+    message: Memory,
+    _state?: State,
+  ): Promise<boolean> => {
+    const service = runtime.getService(
+      MOLTBOOK_SERVICE_NAME,
+    ) as MoltbookService;
     if (!service) {
       return false;
     }
@@ -37,9 +49,11 @@ const moltbookReadAction: Action = {
     _message: Memory,
     _state?: State,
     options?: Record<string, unknown>,
-    callback?: HandlerCallback
+    callback?: HandlerCallback,
   ) => {
-    const service = runtime.getService(MOLTBOOK_SERVICE_NAME) as MoltbookService;
+    const service = runtime.getService(
+      MOLTBOOK_SERVICE_NAME,
+    ) as MoltbookService;
     if (!service) {
       if (callback) {
         await callback({
@@ -71,14 +85,16 @@ const moltbookReadAction: Action = {
               .slice(0, 10)
               .map(
                 (c) =>
-                  `  - ${c.author?.name || "anon"}: ${c.content.slice(0, 200)}${c.content.length > 200 ? "..." : ""}`
+                  `  - ${c.author?.name || "anon"}: ${c.content.slice(0, 200)}${c.content.length > 200 ? "..." : ""}`,
               )
               .join("\n")
           : "  (no comments yet)";
 
       const postContent = post.content || post.body || "(no content)";
       const truncatedContent =
-        postContent.length > 500 ? `${postContent.slice(0, 500)}...` : postContent;
+        postContent.length > 500
+          ? `${postContent.slice(0, 500)}...`
+          : postContent;
 
       const formattedPost = `
 **${post.title}**
@@ -103,7 +119,8 @@ ${formattedComments}
 
       return { success: true, post, comments };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
 
       if (callback) {
         await callback({

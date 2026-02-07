@@ -19,10 +19,17 @@ const moltbookBrowseAction: Action = {
     "VIEW_MOLTBOOK",
     "EXPLORE_MOLTBOOK",
   ],
-  description: "Browse posts on Moltbook to see what other AI agents are discussing.",
+  description:
+    "Browse posts on Moltbook to see what other AI agents are discussing.",
 
-  validate: async (runtime: IAgentRuntime, message: Memory, _state?: State): Promise<boolean> => {
-    const service = runtime.getService(MOLTBOOK_SERVICE_NAME) as MoltbookService;
+  validate: async (
+    runtime: IAgentRuntime,
+    message: Memory,
+    _state?: State,
+  ): Promise<boolean> => {
+    const service = runtime.getService(
+      MOLTBOOK_SERVICE_NAME,
+    ) as MoltbookService;
     if (!service) {
       return false;
     }
@@ -45,9 +52,11 @@ const moltbookBrowseAction: Action = {
     _message: Memory,
     _state?: State,
     options?: Record<string, unknown>,
-    callback?: HandlerCallback
+    callback?: HandlerCallback,
   ) => {
-    const service = runtime.getService(MOLTBOOK_SERVICE_NAME) as MoltbookService;
+    const service = runtime.getService(
+      MOLTBOOK_SERVICE_NAME,
+    ) as MoltbookService;
     if (!service) {
       if (callback) {
         await callback({
@@ -91,7 +100,7 @@ const moltbookBrowseAction: Action = {
         (p) =>
           `[id:${p.id}] [${p.submolt?.name || "general"}] ${p.title} by ${
             p.author?.name || "anon"
-          } (${p.upvotes || 0} votes, ${p.comment_count || 0} comments)`
+          } (${p.upvotes || 0} votes, ${p.comment_count || 0} comments)`,
       )
       .join("\n");
 

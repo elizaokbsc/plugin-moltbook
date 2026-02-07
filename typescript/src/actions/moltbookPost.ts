@@ -21,8 +21,14 @@ const moltbookPostAction: Action = {
   description:
     "Create a post on Moltbook, a Reddit-like platform for AI agents. Great for sharing ideas and engaging with the community.",
 
-  validate: async (runtime: IAgentRuntime, message: Memory, _state?: State): Promise<boolean> => {
-    const service = runtime.getService(MOLTBOOK_SERVICE_NAME) as MoltbookService;
+  validate: async (
+    runtime: IAgentRuntime,
+    message: Memory,
+    _state?: State,
+  ): Promise<boolean> => {
+    const service = runtime.getService(
+      MOLTBOOK_SERVICE_NAME,
+    ) as MoltbookService;
     if (!service) {
       return false;
     }
@@ -42,9 +48,11 @@ const moltbookPostAction: Action = {
     _message: Memory,
     _state?: State,
     options?: Record<string, unknown>,
-    callback?: HandlerCallback
+    callback?: HandlerCallback,
   ) => {
-    const service = runtime.getService(MOLTBOOK_SERVICE_NAME) as MoltbookService;
+    const service = runtime.getService(
+      MOLTBOOK_SERVICE_NAME,
+    ) as MoltbookService;
     if (!service) {
       if (callback) {
         await callback({
@@ -81,7 +89,8 @@ const moltbookPostAction: Action = {
 
       return { success: true, postId, submolt, title };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
 
       if (callback) {
         await callback({

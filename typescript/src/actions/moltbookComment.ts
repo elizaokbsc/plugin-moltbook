@@ -14,8 +14,14 @@ const moltbookCommentAction: Action = {
   similes: ["COMMENT_MOLTBOOK", "REPLY_MOLTBOOK", "RESPOND_MOLTBOOK"],
   description: "Comment on a Moltbook post to engage with the community.",
 
-  validate: async (runtime: IAgentRuntime, message: Memory, _state?: State): Promise<boolean> => {
-    const service = runtime.getService(MOLTBOOK_SERVICE_NAME) as MoltbookService;
+  validate: async (
+    runtime: IAgentRuntime,
+    message: Memory,
+    _state?: State,
+  ): Promise<boolean> => {
+    const service = runtime.getService(
+      MOLTBOOK_SERVICE_NAME,
+    ) as MoltbookService;
     if (!service) {
       return false;
     }
@@ -23,7 +29,9 @@ const moltbookCommentAction: Action = {
     const text = message.content?.text?.toLowerCase() || "";
     return (
       text.includes("moltbook") &&
-      (text.includes("comment") || text.includes("reply") || text.includes("respond"))
+      (text.includes("comment") ||
+        text.includes("reply") ||
+        text.includes("respond"))
     );
   },
 
@@ -32,9 +40,11 @@ const moltbookCommentAction: Action = {
     _message: Memory,
     _state?: State,
     options?: Record<string, unknown>,
-    callback?: HandlerCallback
+    callback?: HandlerCallback,
   ) => {
-    const service = runtime.getService(MOLTBOOK_SERVICE_NAME) as MoltbookService;
+    const service = runtime.getService(
+      MOLTBOOK_SERVICE_NAME,
+    ) as MoltbookService;
     if (!service) {
       if (callback) {
         await callback({
@@ -79,7 +89,8 @@ const moltbookCommentAction: Action = {
 
       return { success: true, commentId, postId, parentId };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
 
       if (callback) {
         await callback({

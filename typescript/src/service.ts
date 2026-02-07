@@ -12,7 +12,12 @@ import {
   type UUID,
 } from "@elizaos/core";
 
-import { AUTONOMY_DEFAULTS, CONTENT_LIMITS, MOLTBOOK_SERVICE_NAME, URLS } from "./constants";
+import {
+  AUTONOMY_DEFAULTS,
+  CONTENT_LIMITS,
+  MOLTBOOK_SERVICE_NAME,
+  URLS,
+} from "./constants";
 import { getMoltbookSettings, validateMoltbookSettings } from "./environment";
 import {
   type IMoltbookService,
@@ -81,7 +86,9 @@ export class MoltbookService extends Service implements IMoltbookService {
     const service = new MoltbookService(runtime);
     const success = await service.initialize();
     if (!success) {
-      runtime.logger.error(`Moltbook service failed to initialize: ${service.initializationError}`);
+      runtime.logger.error(
+        `Moltbook service failed to initialize: ${service.initializationError}`,
+      );
     }
     return service;
   }
@@ -101,18 +108,25 @@ export class MoltbookService extends Service implements IMoltbookService {
     if (!validation.valid) {
       this._initializationError = validation.errors.join("; ");
       this.runtime.logger.error(
-        `Moltbook service initialization failed: ${this._initializationError}`
+        `Moltbook service initialization failed: ${this._initializationError}`,
       );
       return false;
     }
 
     try {
-      this.runtime.logger.info(`Moltbook service started for ${this.settings.agentName}`);
+      this.runtime.logger.info(
+        `Moltbook service started for ${this.settings.agentName}`,
+      );
       this.runtime.logger.info(`Moltbook API: ${URLS.moltbook}`);
-      this.runtime.logger.info(`Token configured: ${this.settings.moltbookToken ? "yes" : "no"}`);
+      this.runtime.logger.info(
+        `Token configured: ${this.settings.moltbookToken ? "yes" : "no"}`,
+      );
 
       // Register send handler for moltbook source
-      this.runtime.registerSendHandler("moltbook", this.handleSendMessage.bind(this));
+      this.runtime.registerSendHandler(
+        "moltbook",
+        this.handleSendMessage.bind(this),
+      );
 
       // Start autonomy loop if enabled
       if (this.settings.autonomousMode) {
@@ -124,7 +138,9 @@ export class MoltbookService extends Service implements IMoltbookService {
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       this._initializationError = errorMsg;
-      this.runtime.logger.error(`Failed to start Moltbook service: ${errorMsg}`);
+      this.runtime.logger.error(
+        `Failed to start Moltbook service: ${errorMsg}`,
+      );
       return false;
     }
   }
@@ -140,7 +156,11 @@ export class MoltbookService extends Service implements IMoltbookService {
   /**
    * Post to Moltbook
    */
-  async moltbookPost(submolt: string, title: string, content: string): Promise<string> {
+  async moltbookPost(
+    submolt: string,
+    title: string,
+    content: string,
+  ): Promise<string> {
     if (!this.settings.moltbookToken) {
       throw new Error("MOLTBOOK_TOKEN not set - cannot create posts");
     }
@@ -148,12 +168,12 @@ export class MoltbookService extends Service implements IMoltbookService {
     // Validate content lengths
     if (title.length > CONTENT_LIMITS.maxTitleLength) {
       throw new Error(
-        `Title exceeds maximum length of ${CONTENT_LIMITS.maxTitleLength} characters`
+        `Title exceeds maximum length of ${CONTENT_LIMITS.maxTitleLength} characters`,
       );
     }
     if (content.length > CONTENT_LIMITS.maxContentLength) {
       throw new Error(
-        `Content exceeds maximum length of ${CONTENT_LIMITS.maxContentLength} characters`
+        `Content exceeds maximum length of ${CONTENT_LIMITS.maxContentLength} characters`,
       );
     }
 
@@ -180,7 +200,7 @@ export class MoltbookService extends Service implements IMoltbookService {
         {
           runtime: this.runtime,
           source: "moltbook",
-        } as EventPayload
+        } as EventPayload,
       );
 
       this.runtime.logger.info(`Posted to Moltbook: ${title} in r/${submolt}`);
@@ -195,7 +215,10 @@ export class MoltbookService extends Service implements IMoltbookService {
    * Browse Moltbook posts
    * Returns a Result type so callers can distinguish "no posts" from "API error"
    */
-  async moltbookBrowse(submolt?: string, sort = "hot"): Promise<MoltbookResult<MoltbookPost[]>> {
+  async moltbookBrowse(
+    submolt?: string,
+    sort = "hot",
+  ): Promise<MoltbookResult<MoltbookPost[]>> {
     try {
       const url = submolt
         ? `${URLS.moltbook}/submolts/${submolt}/feed?sort=${sort}&limit=${CONTENT_LIMITS.defaultBrowseLimit}`
@@ -214,8 +237,12 @@ export class MoltbookService extends Service implements IMoltbookService {
 
       if (!response.ok) {
         const errorText = await response.text();
-        this.runtime.logger.error(`Moltbook API error (${response.status}): ${errorText}`);
-        return moltbookFailure(`API returned ${response.status}: ${errorText.slice(0, 100)}`);
+        this.runtime.logger.error(
+          `Moltbook API error (${response.status}): ${errorText}`,
+        );
+        return moltbookFailure(
+          `API returned ${response.status}: ${errorText.slice(0, 100)}`,
+        );
       }
 
       const data = (await response.json()) as { posts?: MoltbookPost[] };
@@ -226,7 +253,7 @@ export class MoltbookService extends Service implements IMoltbookService {
         {
           runtime: this.runtime,
           source: "moltbook",
-        } as EventPayload
+        } as EventPayload,
       );
 
       return moltbookSuccess(posts);
@@ -247,19 +274,22 @@ export class MoltbookService extends Service implements IMoltbookService {
 
     if (content.length > CONTENT_LIMITS.maxCommentLength) {
       throw new Error(
-        `Comment exceeds maximum length of ${CONTENT_LIMITS.maxCommentLength} characters`
+        `Comment exceeds maximum length of ${CONTENT_LIMITS.maxCommentLength} characters`,
       );
     }
 
     try {
-      const response = await fetch(`${URLS.moltbook}/posts/${postId}/comments`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${this.settings.moltbookToken}`,
-          "Content-Type": "application/json",
+      const response = await fetch(
+        `${URLS.moltbook}/posts/${postId}/comments`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${this.settings.moltbookToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ content }),
         },
-        body: JSON.stringify({ content }),
-      });
+      );
 
       const data = (await response.json()) as { id?: string; error?: string };
       if (!response.ok) {
@@ -271,7 +301,7 @@ export class MoltbookService extends Service implements IMoltbookService {
         {
           runtime: this.runtime,
           source: "moltbook",
-        } as EventPayload
+        } as EventPayload,
       );
 
       this.runtime.logger.info(`Commented on Moltbook post ${postId}`);
@@ -285,26 +315,33 @@ export class MoltbookService extends Service implements IMoltbookService {
   /**
    * Reply to a Moltbook comment
    */
-  async moltbookReply(postId: string, parentId: string, content: string): Promise<string> {
+  async moltbookReply(
+    postId: string,
+    parentId: string,
+    content: string,
+  ): Promise<string> {
     if (!this.settings.moltbookToken) {
       throw new Error("MOLTBOOK_TOKEN not set - cannot create replies");
     }
 
     if (content.length > CONTENT_LIMITS.maxCommentLength) {
       throw new Error(
-        `Reply exceeds maximum length of ${CONTENT_LIMITS.maxCommentLength} characters`
+        `Reply exceeds maximum length of ${CONTENT_LIMITS.maxCommentLength} characters`,
       );
     }
 
     try {
-      const response = await fetch(`${URLS.moltbook}/posts/${postId}/comments`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${this.settings.moltbookToken}`,
-          "Content-Type": "application/json",
+      const response = await fetch(
+        `${URLS.moltbook}/posts/${postId}/comments`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${this.settings.moltbookToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ content, parent_id: parentId }),
         },
-        body: JSON.stringify({ content, parent_id: parentId }),
-      });
+      );
 
       const data = (await response.json()) as { id?: string; error?: string };
       if (!response.ok) {
@@ -316,10 +353,12 @@ export class MoltbookService extends Service implements IMoltbookService {
         {
           runtime: this.runtime,
           source: "moltbook",
-        } as EventPayload
+        } as EventPayload,
       );
 
-      this.runtime.logger.info(`Replied to comment ${parentId} on post ${postId}`);
+      this.runtime.logger.info(
+        `Replied to comment ${parentId} on post ${postId}`,
+      );
       return data.id || "success";
     } catch (error) {
       this.runtime.logger.error(`Failed to reply on Moltbook: ${error}`);
@@ -331,7 +370,7 @@ export class MoltbookService extends Service implements IMoltbookService {
    * Read a Moltbook post with comments
    */
   async moltbookReadPost(
-    postId: string
+    postId: string,
   ): Promise<{ post: MoltbookPost; comments: MoltbookComment[] }> {
     try {
       const headers: Record<string, string> = {
@@ -359,7 +398,7 @@ export class MoltbookService extends Service implements IMoltbookService {
         {
           runtime: this.runtime,
           source: "moltbook",
-        } as EventPayload
+        } as EventPayload,
       );
 
       return {
@@ -376,7 +415,9 @@ export class MoltbookService extends Service implements IMoltbookService {
    * List available submolts
    * Returns a Result type so callers can distinguish "no submolts" from "API error"
    */
-  async moltbookListSubmolts(sort = "popular"): Promise<MoltbookResult<MoltbookSubmolt[]>> {
+  async moltbookListSubmolts(
+    sort = "popular",
+  ): Promise<MoltbookResult<MoltbookSubmolt[]>> {
     try {
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
@@ -386,12 +427,19 @@ export class MoltbookService extends Service implements IMoltbookService {
         headers.Authorization = `Bearer ${this.settings.moltbookToken}`;
       }
 
-      const response = await fetch(`${URLS.moltbook}/submolts?sort=${sort}&limit=20`, { headers });
+      const response = await fetch(
+        `${URLS.moltbook}/submolts?sort=${sort}&limit=20`,
+        { headers },
+      );
 
       if (!response.ok) {
         const errorText = await response.text();
-        this.runtime.logger.error(`Moltbook API error (${response.status}): ${errorText}`);
-        return moltbookFailure(`API returned ${response.status}: ${errorText.slice(0, 100)}`);
+        this.runtime.logger.error(
+          `Moltbook API error (${response.status}): ${errorText}`,
+        );
+        return moltbookFailure(
+          `API returned ${response.status}: ${errorText.slice(0, 100)}`,
+        );
       }
 
       const data = (await response.json()) as { submolts?: MoltbookSubmolt[] };
@@ -407,7 +455,9 @@ export class MoltbookService extends Service implements IMoltbookService {
    * Get details about a specific submolt
    * Returns a Result type so callers can distinguish "not found" from "API error"
    */
-  async moltbookGetSubmolt(submoltName: string): Promise<MoltbookResult<MoltbookSubmolt | null>> {
+  async moltbookGetSubmolt(
+    submoltName: string,
+  ): Promise<MoltbookResult<MoltbookSubmolt | null>> {
     try {
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
@@ -428,15 +478,21 @@ export class MoltbookService extends Service implements IMoltbookService {
 
       if (!response.ok) {
         const errorText = await response.text();
-        this.runtime.logger.error(`Moltbook API error (${response.status}): ${errorText}`);
-        return moltbookFailure(`API returned ${response.status}: ${errorText.slice(0, 100)}`);
+        this.runtime.logger.error(
+          `Moltbook API error (${response.status}): ${errorText}`,
+        );
+        return moltbookFailure(
+          `API returned ${response.status}: ${errorText.slice(0, 100)}`,
+        );
       }
 
       const data = (await response.json()) as { submolt?: MoltbookSubmolt };
       return moltbookSuccess(data.submolt || null);
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
-      this.runtime.logger.error(`Failed to get submolt ${submoltName}: ${errorMsg}`);
+      this.runtime.logger.error(
+        `Failed to get submolt ${submoltName}: ${errorMsg}`,
+      );
       return moltbookFailure(errorMsg);
     }
   }
@@ -447,11 +503,13 @@ export class MoltbookService extends Service implements IMoltbookService {
   private async handleSendMessage(
     _runtime: IAgentRuntime,
     _target: TargetInfo,
-    content: Content
+    content: Content,
   ): Promise<void> {
     // This handler can be used for automated posting from the runtime
     // Access dynamic properties via index signature since Content allows arbitrary keys
-    const metadata = content.metadata as Record<string, string | undefined> | undefined;
+    const metadata = content.metadata as
+      | Record<string, string | undefined>
+      | undefined;
     const postId = metadata?.postId;
     const submolt = metadata?.submolt;
     const title = metadata?.title;
@@ -492,7 +550,7 @@ export class MoltbookService extends Service implements IMoltbookService {
       {
         runtime: this.runtime,
         source: "moltbook",
-      } as EventPayload
+      } as EventPayload,
     );
 
     this.runtime.logger.info("Moltbook autonomy loop started");
@@ -516,7 +574,7 @@ export class MoltbookService extends Service implements IMoltbookService {
       {
         runtime: this.runtime,
         source: "moltbook",
-      } as EventPayload
+      } as EventPayload,
     );
 
     this.runtime.logger.info("Moltbook autonomy loop stopped");
@@ -581,10 +639,16 @@ export class MoltbookService extends Service implements IMoltbookService {
     ) {
       return { action: this.AUTONOMY_ACTIONS.POST };
     }
-    if (lowerResponse.includes("comment on") || lowerResponse.includes("reply to")) {
+    if (
+      lowerResponse.includes("comment on") ||
+      lowerResponse.includes("reply to")
+    ) {
       return { action: this.AUTONOMY_ACTIONS.COMMENT };
     }
-    if (lowerResponse.includes("browse") || lowerResponse.includes("check posts")) {
+    if (
+      lowerResponse.includes("browse") ||
+      lowerResponse.includes("check posts")
+    ) {
       return { action: this.AUTONOMY_ACTIONS.BROWSE };
     }
 
@@ -602,7 +666,9 @@ export class MoltbookService extends Service implements IMoltbookService {
       this.settings.autonomyMaxSteps &&
       this.autonomyStepCount >= this.settings.autonomyMaxSteps
     ) {
-      this.runtime.logger.info(`Reached max autonomy steps (${this.settings.autonomyMaxSteps})`);
+      this.runtime.logger.info(
+        `Reached max autonomy steps (${this.settings.autonomyMaxSteps})`,
+      );
       this.stopAutonomyLoop();
       return;
     }
@@ -618,7 +684,7 @@ export class MoltbookService extends Service implements IMoltbookService {
         .slice(0, 5)
         .map(
           (p) =>
-            `- [id:${p.id}] [r/${p.submolt?.name || "general"}] "${p.title}" by ${p.author?.name || "anon"} (${p.upvotes || 0} votes, ${p.comment_count || 0} comments)`
+            `- [id:${p.id}] [r/${p.submolt?.name || "general"}] "${p.title}" by ${p.author?.name || "anon"} (${p.upvotes || 0} votes, ${p.comment_count || 0} comments)`,
         )
         .join("\n");
 
@@ -677,18 +743,25 @@ Be creative but stay in character. If you POST, make it engaging and relevant to
 
       // Get LLM decision
       if (!this.runtime.messageService) {
-        this.runtime.logger.error("[MoltbookService] messageService not available");
+        this.runtime.logger.error(
+          "[MoltbookService] messageService not available",
+        );
         return;
       }
 
-      const result = await this.runtime.messageService.handleMessage(this.runtime, memory);
+      const result = await this.runtime.messageService.handleMessage(
+        this.runtime,
+        memory,
+      );
 
       const responseText = result?.responseContent?.text || "";
       const parsedAction = this.parseAutonomyAction(responseText);
 
       if (!parsedAction) {
         this.memory.push(`Step ${stepNum}: Failed to parse action from LLM`);
-        this.runtime.logger.warn(`Autonomy step ${stepNum}: Could not parse action`);
+        this.runtime.logger.warn(
+          `Autonomy step ${stepNum}: Could not parse action`,
+        );
         return;
       }
 
@@ -697,42 +770,62 @@ Be creative but stay in character. If you POST, make it engaging and relevant to
 
       switch (parsedAction.action.toUpperCase()) {
         case this.AUTONOMY_ACTIONS.POST: {
-          if (!this.settings.moltbookToken || !parsedAction.title || !parsedAction.content) {
+          if (
+            !this.settings.moltbookToken ||
+            !parsedAction.title ||
+            !parsedAction.content
+          ) {
             actionResult = "POST skipped: missing token, title, or content";
-            this.runtime.logger.info(`Autonomy step ${stepNum}: ${actionResult}`);
+            this.runtime.logger.info(
+              `Autonomy step ${stepNum}: ${actionResult}`,
+            );
           } else {
             const submolt = parsedAction.submolt || "iq";
             try {
               const postId = await this.moltbookPost(
                 submolt,
                 parsedAction.title,
-                parsedAction.content
+                parsedAction.content,
               );
               actionResult = `POSTED to r/${submolt}: "${parsedAction.title}" (id: ${postId})`;
-              this.runtime.logger.info(`Autonomy step ${stepNum}: ${actionResult}`);
+              this.runtime.logger.info(
+                `Autonomy step ${stepNum}: ${actionResult}`,
+              );
             } catch (err) {
               actionResult = `POST failed: ${err instanceof Error ? err.message : String(err)}`;
-              this.runtime.logger.error(`Autonomy step ${stepNum}: ${actionResult}`);
+              this.runtime.logger.error(
+                `Autonomy step ${stepNum}: ${actionResult}`,
+              );
             }
           }
           break;
         }
 
         case this.AUTONOMY_ACTIONS.COMMENT: {
-          if (!this.settings.moltbookToken || !parsedAction.postId || !parsedAction.content) {
+          if (
+            !this.settings.moltbookToken ||
+            !parsedAction.postId ||
+            !parsedAction.content
+          ) {
             actionResult = "COMMENT skipped: missing token, postId, or content";
-            this.runtime.logger.info(`Autonomy step ${stepNum}: ${actionResult}`);
+            this.runtime.logger.info(
+              `Autonomy step ${stepNum}: ${actionResult}`,
+            );
           } else {
             try {
               const commentId = await this.moltbookComment(
                 parsedAction.postId,
-                parsedAction.content
+                parsedAction.content,
               );
               actionResult = `COMMENTED on post ${parsedAction.postId} (comment id: ${commentId})`;
-              this.runtime.logger.info(`Autonomy step ${stepNum}: ${actionResult}`);
+              this.runtime.logger.info(
+                `Autonomy step ${stepNum}: ${actionResult}`,
+              );
             } catch (err) {
               actionResult = `COMMENT failed: ${err instanceof Error ? err.message : String(err)}`;
-              this.runtime.logger.error(`Autonomy step ${stepNum}: ${actionResult}`);
+              this.runtime.logger.error(
+                `Autonomy step ${stepNum}: ${actionResult}`,
+              );
             }
           }
           break;
@@ -769,7 +862,7 @@ Be creative but stay in character. If you POST, make it engaging and relevant to
           stepNumber: stepNum,
           action: parsedAction.action,
           result: actionResult,
-        } as EventPayload
+        } as EventPayload,
       );
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
@@ -779,7 +872,8 @@ Be creative but stay in character. If you POST, make it engaging and relevant to
 
     // Schedule next step with configured delay (plus some jitter)
     if (this.autonomyRunning) {
-      const baseDelay = this.settings.autonomyIntervalMs || AUTONOMY_DEFAULTS.minIntervalMs;
+      const baseDelay =
+        this.settings.autonomyIntervalMs || AUTONOMY_DEFAULTS.minIntervalMs;
       const jitter = Math.random() * 10000; // 0-10 seconds jitter
       const delay = baseDelay + jitter;
 

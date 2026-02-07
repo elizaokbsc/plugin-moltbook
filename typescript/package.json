@@ -27,11 +27,11 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@elizaos/core": "workspace:*",
+    "@elizaos/core": "2.0.0-alpha.3",
     "nanoid": "^5.0.7"
   },
   "peerDependencies": {
-    "@elizaos/core": "workspace:*"
+    "@elizaos/core": "2.0.0-alpha.3"
   },
   "devDependencies": {
     "@types/node": "^22.10.5",

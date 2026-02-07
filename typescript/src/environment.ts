@@ -7,7 +7,10 @@ import type { MoltbookSettings } from "./types";
  * Environment variables > Character settings > Defaults
  */
 export function getMoltbookSettings(runtime: IAgentRuntime): MoltbookSettings {
-  const getSetting = (key: string, defaultValue?: string): string | undefined => {
+  const getSetting = (
+    key: string,
+    defaultValue?: string,
+  ): string | undefined => {
     const envValue = runtime.getSetting(key) as string | undefined;
     if (envValue && typeof envValue === "string" && envValue.trim()) {
       return envValue.trim();
@@ -38,7 +41,8 @@ export function getMoltbookSettings(runtime: IAgentRuntime): MoltbookSettings {
   };
 
   // Agent name: prefer MOLTBOOK_AGENT_NAME, then character name
-  const agentName = getSetting("MOLTBOOK_AGENT_NAME") ?? runtime.character?.name ?? "Agent";
+  const agentName =
+    getSetting("MOLTBOOK_AGENT_NAME") ?? runtime.character?.name ?? "Agent";
 
   return {
     agentName,
@@ -61,7 +65,7 @@ export function getMoltbookSettings(runtime: IAgentRuntime): MoltbookSettings {
     // Autonomy settings
     autonomyIntervalMs: getNumberSetting(
       "MOLTBOOK_AUTONOMY_INTERVAL_MS",
-      AUTONOMY_DEFAULTS.minIntervalMs
+      AUTONOMY_DEFAULTS.minIntervalMs,
     ),
     autonomyMaxSteps: getNumberSetting("MOLTBOOK_AUTONOMY_MAX_STEPS", 0), // 0 = unlimited
     autonomousMode: getBoolSetting("MOLTBOOK_AUTONOMOUS_MODE", false),
@@ -102,7 +106,9 @@ export function validateMoltbookSettings(settings: MoltbookSettings): {
 
   // Moltbook token is required for most functionality
   if (!settings.moltbookToken) {
-    warnings.push("MOLTBOOK_TOKEN not set - posting and commenting will be disabled");
+    warnings.push(
+      "MOLTBOOK_TOKEN not set - posting and commenting will be disabled",
+    );
   }
 
   // For autonomous mode, LLM API key is required
@@ -114,19 +120,21 @@ export function validateMoltbookSettings(settings: MoltbookSettings): {
   if (settings.autonomyIntervalMs !== undefined) {
     if (settings.autonomyIntervalMs < AUTONOMY_INTERVAL_BOUNDS.min) {
       errors.push(
-        `MOLTBOOK_AUTONOMY_INTERVAL_MS (${settings.autonomyIntervalMs}ms) is below minimum (${AUTONOMY_INTERVAL_BOUNDS.min}ms)`
+        `MOLTBOOK_AUTONOMY_INTERVAL_MS (${settings.autonomyIntervalMs}ms) is below minimum (${AUTONOMY_INTERVAL_BOUNDS.min}ms)`,
       );
     }
     if (settings.autonomyIntervalMs > AUTONOMY_INTERVAL_BOUNDS.max) {
       errors.push(
-        `MOLTBOOK_AUTONOMY_INTERVAL_MS (${settings.autonomyIntervalMs}ms) exceeds maximum (${AUTONOMY_INTERVAL_BOUNDS.max}ms)`
+        `MOLTBOOK_AUTONOMY_INTERVAL_MS (${settings.autonomyIntervalMs}ms) exceeds maximum (${AUTONOMY_INTERVAL_BOUNDS.max}ms)`,
       );
     }
   }
 
   // Validate LLM base URL format
   if (settings.llmBaseUrl && !isValidUrl(settings.llmBaseUrl)) {
-    errors.push(`LLM_BASE_URL "${settings.llmBaseUrl}" is not a valid HTTP/HTTPS URL`);
+    errors.push(
+      `LLM_BASE_URL "${settings.llmBaseUrl}" is not a valid HTTP/HTTPS URL`,
+    );
   }
 
   // Validate model string is not empty
@@ -135,8 +143,13 @@ export function validateMoltbookSettings(settings: MoltbookSettings): {
   }
 
   // Validate autonomyMaxSteps is non-negative
-  if (settings.autonomyMaxSteps !== undefined && settings.autonomyMaxSteps < 0) {
-    errors.push(`MOLTBOOK_AUTONOMY_MAX_STEPS (${settings.autonomyMaxSteps}) cannot be negative`);
+  if (
+    settings.autonomyMaxSteps !== undefined &&
+    settings.autonomyMaxSteps < 0
+  ) {
+    errors.push(
+      `MOLTBOOK_AUTONOMY_MAX_STEPS (${settings.autonomyMaxSteps}) cannot be negative`,
+    );
   }
 
   // Validate agent name is not empty

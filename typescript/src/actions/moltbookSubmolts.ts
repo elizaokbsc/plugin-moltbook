@@ -23,8 +23,14 @@ const moltbookSubmoltsAction: Action = {
   description:
     "List available submolts (communities) on Moltbook or get details about a specific submolt.",
 
-  validate: async (runtime: IAgentRuntime, message: Memory, _state?: State): Promise<boolean> => {
-    const service = runtime.getService(MOLTBOOK_SERVICE_NAME) as MoltbookService;
+  validate: async (
+    runtime: IAgentRuntime,
+    message: Memory,
+    _state?: State,
+  ): Promise<boolean> => {
+    const service = runtime.getService(
+      MOLTBOOK_SERVICE_NAME,
+    ) as MoltbookService;
     if (!service) {
       return false;
     }
@@ -48,9 +54,11 @@ const moltbookSubmoltsAction: Action = {
     _message: Memory,
     _state?: State,
     options?: Record<string, unknown>,
-    callback?: HandlerCallback
+    callback?: HandlerCallback,
   ) => {
-    const service = runtime.getService(MOLTBOOK_SERVICE_NAME) as MoltbookService;
+    const service = runtime.getService(
+      MOLTBOOK_SERVICE_NAME,
+    ) as MoltbookService;
     if (!service) {
       if (callback) {
         await callback({
@@ -93,7 +101,10 @@ const moltbookSubmoltsAction: Action = {
       const posts = postsResult.success ? postsResult.data : [];
       const recentPosts = posts
         .slice(0, 5)
-        .map((p) => `  • ${p.title} by ${p.author?.name || "anon"} (${p.upvotes || 0} votes)`)
+        .map(
+          (p) =>
+            `  • ${p.title} by ${p.author?.name || "anon"} (${p.upvotes || 0} votes)`,
+        )
         .join("\n");
 
       const submoltInfo = `
@@ -150,7 +161,7 @@ ${recentPosts || "  (no recent posts)"}
       .slice(0, 15)
       .map(
         (s) =>
-          `• m/${s.name} - ${s.description?.slice(0, 60) || "(no description)"}${s.description && s.description.length > 60 ? "..." : ""} (${s.subscriber_count || 0} members)`
+          `• m/${s.name} - ${s.description?.slice(0, 60) || "(no description)"}${s.description && s.description.length > 60 ? "..." : ""} (${s.subscriber_count || 0} members)`,
       )
       .join("\n");
 

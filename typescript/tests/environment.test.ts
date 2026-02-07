@@ -26,7 +26,7 @@ describe("validateMoltbookSettings", () => {
       const result = validateMoltbookSettings(settings);
       expect(result.valid).toBe(true);
       expect(result.warnings).toContain(
-        "MOLTBOOK_TOKEN not set - posting and commenting will be disabled"
+        "MOLTBOOK_TOKEN not set - posting and commenting will be disabled",
       );
     });
 
@@ -46,7 +46,9 @@ describe("validateMoltbookSettings", () => {
       const settings = { ...validSettings, llmApiKey: undefined };
       const result = validateMoltbookSettings(settings);
       expect(result.valid).toBe(false);
-      expect(result.errors).toContain("LLM_API_KEY is required for autonomous mode");
+      expect(result.errors).toContain(
+        "LLM_API_KEY is required for autonomous mode",
+      );
     });
 
     it("rejects autonomy interval below minimum", () => {
@@ -60,14 +62,18 @@ describe("validateMoltbookSettings", () => {
       const settings = { ...validSettings, autonomyIntervalMs: 5000000 };
       const result = validateMoltbookSettings(settings);
       expect(result.valid).toBe(false);
-      expect(result.errors.some((e) => e.includes("exceeds maximum"))).toBe(true);
+      expect(result.errors.some((e) => e.includes("exceeds maximum"))).toBe(
+        true,
+      );
     });
 
     it("rejects invalid LLM base URL", () => {
       const settings = { ...validSettings, llmBaseUrl: "not-a-url" };
       const result = validateMoltbookSettings(settings);
       expect(result.valid).toBe(false);
-      expect(result.errors.some((e) => e.includes("not a valid HTTP/HTTPS URL"))).toBe(true);
+      expect(
+        result.errors.some((e) => e.includes("not a valid HTTP/HTTPS URL")),
+      ).toBe(true);
     });
 
     it("rejects empty agent name", () => {
@@ -81,7 +87,9 @@ describe("validateMoltbookSettings", () => {
       const settings = { ...validSettings, autonomyMaxSteps: -5 };
       const result = validateMoltbookSettings(settings);
       expect(result.valid).toBe(false);
-      expect(result.errors.some((e) => e.includes("cannot be negative"))).toBe(true);
+      expect(result.errors.some((e) => e.includes("cannot be negative"))).toBe(
+        true,
+      );
     });
 
     it("rejects autonomous mode without model", () => {

@@ -1,4 +1,10 @@
-import type { IAgentRuntime, Memory, Provider, ProviderResult, State } from "@elizaos/core";
+import type {
+  IAgentRuntime,
+  Memory,
+  Provider,
+  ProviderResult,
+  State,
+} from "@elizaos/core";
 import { MOLTBOOK_SERVICE_NAME, URLS } from "../constants";
 import type { MoltbookService } from "../service";
 
@@ -8,8 +14,14 @@ import type { MoltbookService } from "../service";
 export const moltbookStateProvider: Provider = {
   name: "moltbookState",
 
-  get: async (runtime: IAgentRuntime, _message: Memory, _state: State): Promise<ProviderResult> => {
-    const service = runtime.getService(MOLTBOOK_SERVICE_NAME) as MoltbookService | undefined;
+  get: async (
+    runtime: IAgentRuntime,
+    _message: Memory,
+    _state: State,
+  ): Promise<ProviderResult> => {
+    const service = runtime.getService(MOLTBOOK_SERVICE_NAME) as
+      | MoltbookService
+      | undefined;
 
     if (!service) {
       return {
@@ -25,10 +37,15 @@ export const moltbookStateProvider: Provider = {
     if (browseResult.success) {
       trendingPosts = browseResult.data
         .slice(0, 5)
-        .map((p) => `[${p.submolt?.name || "general"}] ${p.title} (${p.upvotes || 0} votes)`);
+        .map(
+          (p) =>
+            `[${p.submolt?.name || "general"}] ${p.title} (${p.upvotes || 0} votes)`,
+        );
     } else {
       // Log the error instead of silently swallowing it
-      console.warn(`[moltbookStateProvider] Browse failed: ${browseResult.error}`);
+      console.warn(
+        `[moltbookStateProvider] Browse failed: ${browseResult.error}`,
+      );
     }
 
     const data = {
@@ -45,7 +62,9 @@ export const moltbookStateProvider: Provider = {
     };
 
     const trendingContext =
-      trendingPosts.length > 0 ? `\nTrending on Moltbook:\n${trendingPosts.join("\n")}` : "";
+      trendingPosts.length > 0
+        ? `\nTrending on Moltbook:\n${trendingPosts.join("\n")}`
+        : "";
 
     const text = `
 The agent is connected to Moltbook, a Reddit-style social platform for AI agents.

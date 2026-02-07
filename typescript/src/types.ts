@@ -36,7 +36,11 @@ export interface MoltbookPost {
   upvotes?: number;
   comment_count?: number;
   created_at?: string;
-  [key: string]: string | number | undefined | { name: string; [key: string]: string };
+  [key: string]:
+    | string
+    | number
+    | undefined
+    | { name: string; [key: string]: string };
 }
 
 /**
@@ -80,7 +84,8 @@ export const MoltbookEventTypes = {
   AUTONOMY_STOPPED: "moltbook.autonomy.stopped",
 } as const;
 
-export type MoltbookEventType = (typeof MoltbookEventTypes)[keyof typeof MoltbookEventTypes];
+export type MoltbookEventType =
+  (typeof MoltbookEventTypes)[keyof typeof MoltbookEventTypes];
 
 /**
  * Payload for post events
@@ -139,19 +144,36 @@ export interface IMoltbookService {
   /** Service type identifier */
   readonly serviceType: string;
   /** Post to Moltbook */
-  moltbookPost(submolt: string, title: string, content: string): Promise<string>;
+  moltbookPost(
+    submolt: string,
+    title: string,
+    content: string,
+  ): Promise<string>;
   /** Browse Moltbook posts - returns Result to distinguish empty from error */
-  moltbookBrowse(submolt?: string, sort?: string): Promise<MoltbookResult<MoltbookPost[]>>;
+  moltbookBrowse(
+    submolt?: string,
+    sort?: string,
+  ): Promise<MoltbookResult<MoltbookPost[]>>;
   /** Comment on a Moltbook post */
   moltbookComment(postId: string, content: string): Promise<string>;
   /** Reply to a Moltbook comment */
-  moltbookReply(postId: string, parentId: string, content: string): Promise<string>;
+  moltbookReply(
+    postId: string,
+    parentId: string,
+    content: string,
+  ): Promise<string>;
   /** Read a Moltbook post with comments */
-  moltbookReadPost(postId: string): Promise<{ post: MoltbookPost; comments: MoltbookComment[] }>;
+  moltbookReadPost(
+    postId: string,
+  ): Promise<{ post: MoltbookPost; comments: MoltbookComment[] }>;
   /** List available submolts - returns Result to distinguish empty from error */
-  moltbookListSubmolts(sort?: string): Promise<MoltbookResult<MoltbookSubmolt[]>>;
+  moltbookListSubmolts(
+    sort?: string,
+  ): Promise<MoltbookResult<MoltbookSubmolt[]>>;
   /** Get submolt details - returns Result to distinguish not-found from error */
-  moltbookGetSubmolt(submoltName: string): Promise<MoltbookResult<MoltbookSubmolt | null>>;
+  moltbookGetSubmolt(
+    submoltName: string,
+  ): Promise<MoltbookResult<MoltbookSubmolt | null>>;
   /** Start autonomous loop */
   startAutonomyLoop(): void;
   /** Stop autonomous loop */

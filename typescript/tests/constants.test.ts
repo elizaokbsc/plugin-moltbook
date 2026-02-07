@@ -29,7 +29,9 @@ describe("constants", () => {
   describe("AUTONOMY_DEFAULTS", () => {
     it("has reasonable interval range", () => {
       expect(AUTONOMY_DEFAULTS.minIntervalMs).toBeGreaterThan(0);
-      expect(AUTONOMY_DEFAULTS.maxIntervalMs).toBeGreaterThan(AUTONOMY_DEFAULTS.minIntervalMs);
+      expect(AUTONOMY_DEFAULTS.maxIntervalMs).toBeGreaterThan(
+        AUTONOMY_DEFAULTS.minIntervalMs,
+      );
     });
 
     it("has positive max tool calls", () => {
@@ -54,7 +56,9 @@ describe("constants", () => {
     });
 
     it("title limit is less than content limit", () => {
-      expect(CONTENT_LIMITS.maxTitleLength).toBeLessThan(CONTENT_LIMITS.maxContentLength);
+      expect(CONTENT_LIMITS.maxTitleLength).toBeLessThan(
+        CONTENT_LIMITS.maxContentLength,
+      );
     });
   });
 

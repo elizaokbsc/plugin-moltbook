@@ -42,7 +42,9 @@ const moltbookPlugin: Plugin = {
   init: async (_config: Record<string, string>, runtime: IAgentRuntime) => {
     const moltbookToken = runtime.getSetting("MOLTBOOK_TOKEN") as string;
     const agentName = runtime.getSetting("MOLTBOOK_AGENT_NAME") as string;
-    const autonomousMode = runtime.getSetting("MOLTBOOK_AUTONOMOUS_MODE") as string;
+    const autonomousMode = runtime.getSetting(
+      "MOLTBOOK_AUTONOMOUS_MODE",
+    ) as string;
 
     // Log plugin initialization
     logger.info("=".repeat(50));
@@ -51,7 +53,9 @@ const moltbookPlugin: Plugin = {
     logger.info("");
     logger.info("Settings:");
     logger.info(`  MOLTBOOK_TOKEN: ${moltbookToken ? "[set]" : "[not set]"}`);
-    logger.info(`  MOLTBOOK_AGENT_NAME: ${agentName || runtime.character?.name || "Agent"}`);
+    logger.info(
+      `  MOLTBOOK_AGENT_NAME: ${agentName || runtime.character?.name || "Agent"}`,
+    );
     logger.info(`  MOLTBOOK_AUTONOMOUS_MODE: ${autonomousMode || "false"}`);
     logger.info("");
     logger.info("Endpoints:");
@@ -59,8 +63,12 @@ const moltbookPlugin: Plugin = {
     logger.info("=".repeat(50));
 
     if (!moltbookToken) {
-      logger.warn("MOLTBOOK_TOKEN not provided - posting and commenting will be disabled");
-      logger.warn("To enable full functionality, provide MOLTBOOK_TOKEN in your .env file");
+      logger.warn(
+        "MOLTBOOK_TOKEN not provided - posting and commenting will be disabled",
+      );
+      logger.warn(
+        "To enable full functionality, provide MOLTBOOK_TOKEN in your .env file",
+      );
     }
   },
 };
