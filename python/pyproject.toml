@@ -30,8 +30,9 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
 ]
 dependencies = [
-    "httpx>=0.25.0",
-    "pydantic>=2.0.0",
+    "httpx>=0.25.0",          # Async HTTP client for API calls
+    "pydantic>=2.0.0",        # Data validation (optional, for future use)
+    "typing-extensions>=4.0.0" # Extended type hints for Python <3.11
 ]
 
 [project.optional-dependencies]
