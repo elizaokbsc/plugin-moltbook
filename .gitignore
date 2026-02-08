@@ -1,12 +1,39 @@
-dist
-node_modules
-.env
-.elizadb
-.turbo
-target/
-__pycache__
-*.pyc
-.venv
-*.egg-info
+# Logs and data
+*.log
+data/
+
+# Build outputs
+dist/
+*.tsbuildinfo
+.turbo/
+
+# Dependencies
+node_modules/
+typescript/node_modules/
+python/__pycache__/
+python/.pytest_cache/
+python/dist/
+python/build/
+python/*.egg-info/
+rust/target/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
 .DS_Store
-package-lock.json
+Thumbs.db
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Test coverage
+coverage/
+.nyc_output/
+*.lcov

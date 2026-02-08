@@ -31,21 +31,15 @@ export const moltbookStateProvider: Provider = {
       };
     }
 
-    // Get recent Moltbook posts for context
+    // Get recent Moltbook posts for context (inlined wrapper)
     let trendingPosts: string[] = [];
-    const browseResult = await service.moltbookBrowse(undefined, "hot");
-    if (browseResult.success) {
-      trendingPosts = browseResult.data
-        .slice(0, 5)
-        .map(
-          (p) =>
-            `[${p.submolt?.name || "general"}] ${p.title} (${p.upvotes || 0} votes)`,
-        );
-    } else {
-      // Log the error instead of silently swallowing it
-      console.warn(
-        `[moltbookStateProvider] Browse failed: ${browseResult.error}`,
-      );
+    const feed = await service.getPosts({ sort: 'hot', limit: 5 });
+    if (feed && feed.posts.length > 0) {
+      trendingPosts = feed.posts
+        .map((p: any) => {
+          const submoltName = typeof p.submolt === 'string' ? p.submolt : (p.submolt?.name || "general");
+          return `[${submoltName}] ${p.title} (${p.upvotes || 0} votes)`;
+        });
     }
 
     const data = {

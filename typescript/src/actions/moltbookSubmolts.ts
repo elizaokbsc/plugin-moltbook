@@ -3,7 +3,6 @@ import type {
   ActionExample,
   HandlerCallback,
   IAgentRuntime,
-  JsonValue,
   Memory,
   State,
 } from "@elizaos/core";
@@ -73,19 +72,8 @@ const moltbookSubmoltsAction: Action = {
 
     // If a specific submolt is requested, get its details
     if (submoltName) {
-      const submoltResult = await service.moltbookGetSubmolt(submoltName);
-
-      if (!submoltResult.success) {
-        if (callback) {
-          await callback({
-            text: `Failed to get submolt: ${submoltResult.error}`,
-            error: true,
-          });
-        }
-        return { success: false, error: submoltResult.error };
-      }
-
-      const submolt = submoltResult.data;
+      // Get submolt directly (inlined wrapper)
+      const submolt = await service.getSubmolt(submoltName);
       if (!submolt) {
         if (callback) {
           await callback({
@@ -96,14 +84,14 @@ const moltbookSubmoltsAction: Action = {
         return { success: false, error: "Submolt not found" };
       }
 
-      // Also get recent posts from this submolt
-      const postsResult = await service.moltbookBrowse(submoltName, "hot");
-      const posts = postsResult.success ? postsResult.data : [];
+      // Also get recent posts from this submolt (inlined wrapper)
+      const feed = await service.getPosts({ submolt: submoltName, sort: 'hot', limit: 10 });
+      const posts = feed ? feed.posts : [];
       const recentPosts = posts
         .slice(0, 5)
         .map(
           (p) =>
-            `  • ${p.title} by ${p.author?.name || "anon"} (${p.upvotes || 0} votes)`,
+            `  • ${p.title} by ${(p as any).author?.username || (p as any).author?.name || "anon"} (${p.upvotes || 0} votes)`,
         )
         .join("\n");
 
@@ -111,9 +99,9 @@ const moltbookSubmoltsAction: Action = {
 **m/${submolt.name}**
 ${submolt.description || "(no description)"}
 
-Subscribers: ${submolt.subscriber_count || "unknown"}
-Posts: ${submolt.post_count || "unknown"}
-${submolt.created_at ? `Created: ${new Date(submolt.created_at).toLocaleDateString()}` : ""}
+Subscribers: ${(submolt as any).subscriber_count || (submolt as any).memberCount || "unknown"}
+Posts: ${(submolt as any).post_count || (submolt as any).postCount || "unknown"}
+${(submolt as any).created_at || (submolt as any).createdAt ? `Created: ${new Date((submolt as any).created_at || (submolt as any).createdAt).toLocaleDateString()}` : ""}
 
 Recent posts:
 ${recentPosts || "  (no recent posts)"}
@@ -123,8 +111,6 @@ ${recentPosts || "  (no recent posts)"}
         await callback({
           text: submoltInfo,
           data: {
-            submolt: submolt as unknown as JsonValue,
-            posts: posts as unknown as JsonValue,
           },
         });
       }
@@ -132,26 +118,24 @@ ${recentPosts || "  (no recent posts)"}
       return { success: true, submolt, posts };
     }
 
-    // Otherwise, list all submolts
-    const submoltsResult = await service.moltbookListSubmolts("popular");
+    // Otherwise, list all submolts (inlined wrapper)
+    const submolts = await service.getSubmolts("popular");
 
-    if (!submoltsResult.success) {
+    if (!submolts) {
       if (callback) {
         await callback({
-          text: `Failed to get submolts: ${submoltsResult.error}`,
+          text: "Failed to get submolts",
           error: true,
         });
       }
-      return { success: false, error: submoltsResult.error };
+      return { success: false, error: "Failed to get submolts" };
     }
-
-    const submolts = submoltsResult.data;
 
     if (submolts.length === 0) {
       if (callback) {
         await callback({
           text: "No submolts found on Moltbook.",
-          data: { submolts: [] as JsonValue[] },
+          data: { submolts: [] },
         });
       }
       return { success: true, submolts: [] };
@@ -161,16 +145,16 @@ ${recentPosts || "  (no recent posts)"}
       .slice(0, 15)
       .map(
         (s) =>
-          `• m/${s.name} - ${s.description?.slice(0, 60) || "(no description)"}${s.description && s.description.length > 60 ? "..." : ""} (${s.subscriber_count || 0} members)`,
+          `• m/${s.name} - ${s.description?.slice(0, 60) || "(no description)"}${s.description && s.description.length > 60 ? "..." : ""} (${(s as any).memberCount || (s as any).subscriber_count || 0} members)`,
       )
       .join("\n");
 
-    if (callback) {
-      await callback({
-        text: `Available submolts on Moltbook:\n\n${formattedSubmolts}\n\nUse "examine m/[name]" to see details about a specific submolt.`,
-        data: { submolts: submolts as unknown as JsonValue },
-      });
-    }
+      if (callback) {
+        await callback({
+          text: `Available submolts on Moltbook:\n\n${formattedSubmolts}\n\nUse "examine m/[name]" to see details about a specific submolt.`,
+          data: { submolts: submolts as any },
+        });
+      }
 
     return { success: true, submolts };
   },
