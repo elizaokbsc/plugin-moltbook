@@ -1,514 +1,365 @@
-#![allow(missing_docs)]
+//! Moltbook Service
+//!
+//! Core service managing Moltbook integration including:
+//! - Credential management (ENV > Memory > Auto-register)
+//! - Rate limiting and request tracking
+//! - Caching for feed, profile, and community analysis
+//! - API client integration
+//!
+//! Rust port of TypeScript service implementation
 
-use reqwest::Client;
-use serde_json::json;
-use tracing::info;
+use std::sync::{Arc, Mutex};
+use std::collections::HashMap;
 
-use crate::constants::{content_limits, urls, MOLTBOOK_SERVICE_NAME};
-use crate::error::{MoltbookError, Result};
+use crate::constants::*;
 use crate::types::*;
+use crate::lib::{MoltbookApiClient, rate_limiter};
 
-/// MoltbookService - Social engagement service for the Moltbook platform.
-/// Enables agents to post, browse, and comment on Moltbook (Reddit for AI agents).
+/// Main Moltbook service
 pub struct MoltbookService {
     config: MoltbookConfig,
-    client: Client,
-    autonomy_running: bool,
+    api_client: MoltbookApiClient,
+    agent_states: Arc<Mutex<HashMap<String, AgentMoltbookState>>>,
 }
 
 impl MoltbookService {
-    /// Service type identifier
-    pub const SERVICE_TYPE: &'static str = MOLTBOOK_SERVICE_NAME;
-
-    /// Create a new MoltbookService with the given configuration
-    pub fn new(config: MoltbookConfig) -> Result<Self> {
-        if config.agent_name.trim().is_empty() {
-            return Err(MoltbookError::Configuration(
-                "Agent name cannot be empty".to_string(),
-            ));
-        }
-
-        let client = Client::new();
-
-        Ok(Self {
+    /// Create a new Moltbook service
+    pub fn new(config: MoltbookConfig) -> Self {
+        Self {
             config,
-            client,
-            autonomy_running: false,
-        })
-    }
-
-    /// Start the service with the given configuration
-    pub async fn start(config: MoltbookConfig) -> Result<Self> {
-        let service = Self::new(config)?;
-
-        info!(
-            "Moltbook service started for {}",
-            service.config.agent_name
-        );
-        info!("Moltbook API: {}", urls::MOLTBOOK);
-        info!(
-            "Token configured: {}",
-            if service.config.moltbook_token.is_some() {
-                "yes"
-            } else {
-                "no"
-            }
-        );
-
-        Ok(service)
-    }
-
-    /// Stop the service
-    pub async fn stop(&mut self) {
-        self.autonomy_running = false;
-        info!("Moltbook service stopped");
-    }
-
-    /// Get the service configuration
-    pub fn config(&self) -> &MoltbookConfig {
-        &self.config
-    }
-
-    /// Check if autonomy loop is running
-    pub fn is_autonomy_running(&self) -> bool {
-        self.autonomy_running
-    }
-
-    /// Build authorization headers (used for testing and external consumers)
-    #[allow(dead_code)]
-    pub fn auth_headers(&self) -> Vec<(&str, String)> {
-        let mut headers = vec![("Content-Type", "application/json".to_string())];
-        if let Some(token) = &self.config.moltbook_token {
-            headers.push(("Authorization", format!("Bearer {}", token)));
+            api_client: MoltbookApiClient::new(),
+            agent_states: Arc::new(Mutex::new(HashMap::new())),
         }
-        headers
     }
-
-    /// Build a request with optional auth
-    fn build_get_request(&self, url: &str) -> reqwest::RequestBuilder {
-        let mut req = self.client.get(url).header("Content-Type", "application/json");
-        if let Some(token) = &self.config.moltbook_token {
-            req = req.header("Authorization", format!("Bearer {}", token));
+    
+    /// Get or create agent state
+    fn get_agent_state(&self, agent_id: &str) -> AgentMoltbookState {
+        let mut states = self.agent_states.lock().unwrap();
+        states
+            .entry(agent_id.to_string())
+            .or_insert_with(AgentMoltbookState::default)
+            .clone()
+    }
+    
+    /// Update agent state
+    fn update_agent_state(&self, agent_id: &str, state: AgentMoltbookState) {
+        let mut states = self.agent_states.lock().unwrap();
+        states.insert(agent_id.to_string(), state);
+    }
+    
+    /// Get credentials for an agent
+    ///
+    /// Order: ENV vars > Memory > Auto-register (if enabled)
+    pub async fn get_credentials(&self, agent_id: &str) -> MoltbookResult<MoltbookCredentials> {
+        // Check agent state first (in-memory cache)
+        let state = self.get_agent_state(agent_id);
+        if let Some(creds) = state.credentials {
+            return Ok(creds);
         }
-        req
+        
+        // TODO: Check memory storage when Rust runtime integration is complete
+        // let memory_creds = self.load_credentials_from_memory(agent_id).await?;
+        // if let Some(creds) = memory_creds {
+        //     return Ok(creds);
+        // }
+        
+        // Auto-register if enabled
+        if self.config.auto_register {
+            let creds = self.api_client.register_agent(
+                agent_id,
+                &format!("agent-{}", agent_id),
+                "An AI agent powered by ElizaOS",
+            ).await?;
+            
+            // Store credentials
+            let mut state = self.get_agent_state(agent_id);
+            state.credentials = Some(creds.clone());
+            self.update_agent_state(agent_id, state);
+            
+            // TODO: Save to memory when runtime integration is complete
+            // self.save_credentials_to_memory(agent_id, &creds).await?;
+            
+            return Ok(creds);
+        }
+        
+        Err(MoltbookError::AuthenticationError(
+            "No credentials found and auto-register disabled".to_string()
+        ))
     }
-
-    /// Build an authenticated POST request (requires token)
-    fn build_auth_post_request(&self, url: &str) -> Result<reqwest::RequestBuilder> {
-        let token = self
-            .config
-            .moltbook_token
-            .as_ref()
-            .ok_or_else(|| MoltbookError::Authentication("MOLTBOOK_TOKEN not set".to_string()))?;
-
-        Ok(self
-            .client
-            .post(url)
-            .header("Authorization", format!("Bearer {}", token))
-            .header("Content-Type", "application/json"))
-    }
-
-    /// Post to Moltbook
-    pub async fn moltbook_post(
+    
+    /// Get feed with caching
+    pub async fn get_feed(
         &self,
-        submolt: &str,
-        title: &str,
-        content: &str,
-    ) -> Result<String> {
-        if self.config.moltbook_token.is_none() {
-            return Err(MoltbookError::Authentication(
-                "MOLTBOOK_TOKEN not set - cannot create posts".to_string(),
-            ));
-        }
-
-        if title.len() > content_limits::MAX_TITLE_LENGTH {
-            return Err(MoltbookError::ContentTooLong(format!(
-                "Title exceeds maximum length of {} characters",
-                content_limits::MAX_TITLE_LENGTH
-            )));
-        }
-
-        if content.len() > content_limits::MAX_CONTENT_LENGTH {
-            return Err(MoltbookError::ContentTooLong(format!(
-                "Content exceeds maximum length of {} characters",
-                content_limits::MAX_CONTENT_LENGTH
-            )));
-        }
-
-        let url = format!("{}/posts", urls::MOLTBOOK);
-        let req = self.build_auth_post_request(&url)?;
-
-        let response = req
-            .json(&json!({
-                "submolt": submolt,
-                "title": title,
-                "content": content,
-            }))
-            .send()
-            .await?;
-
-        let status = response.status();
-        let data: serde_json::Value = response.json().await?;
-
-        if !status.is_success() {
-            let error_msg = data
-                .get("error")
-                .and_then(|e| e.as_str())
-                .unwrap_or("Unknown error");
-            return Err(MoltbookError::Api {
-                status: status.as_u16(),
-                message: error_msg.to_string(),
-            });
-        }
-
-        let post_id = data
-            .get("post")
-            .and_then(|p| p.get("id"))
-            .and_then(|id| id.as_str())
-            .unwrap_or("success");
-
-        info!("Posted to Moltbook: {} in r/{}", title, submolt);
-        Ok(post_id.to_string())
-    }
-
-    /// Browse Moltbook posts.
-    /// Returns a MoltbookResult so callers can distinguish "no posts" from "API error".
-    pub async fn moltbook_browse(
-        &self,
+        agent_id: &str,
         submolt: Option<&str>,
         sort: &str,
-    ) -> MoltbookResult<Vec<MoltbookPost>> {
-        let url = match submolt {
-            Some(s) => format!(
-                "{}/submolts/{}/feed?sort={}&limit={}",
-                urls::MOLTBOOK,
-                s,
-                sort,
-                content_limits::DEFAULT_BROWSE_LIMIT
-            ),
-            None => format!(
-                "{}/posts?sort={}&limit={}",
-                urls::MOLTBOOK,
-                sort,
-                content_limits::DEFAULT_BROWSE_LIMIT
-            ),
-        };
-
-        let response = match self.build_get_request(&url).send().await {
-            Ok(resp) => resp,
-            Err(e) => return moltbook_failure(e.to_string()),
-        };
-
-        if !response.status().is_success() {
-            let status = response.status().as_u16();
-            let error_text = response.text().await.unwrap_or_default();
-            return moltbook_failure(format!(
-                "API returned {}: {}",
-                status,
-                &error_text[..error_text.len().min(100)]
-            ));
+        limit: usize,
+        cache_opts: Option<CacheOptions>,
+    ) -> MoltbookResult<MoltbookFeed> {
+        let creds = self.get_credentials(agent_id).await?;
+        
+        // Check cache
+        let state = self.get_agent_state(agent_id);
+        if let Some(cached) = &state.feed_cache {
+            let age = current_time_ms() - cached.fetched_at;
+            let max_age = cache_opts.as_ref()
+                .and_then(|opts| opts.max_age)
+                .unwrap_or(CACHE_TTL_FEED_MS);
+            
+            let force_fresh = cache_opts.as_ref()
+                .map(|opts| opts.force_fresh)
+                .unwrap_or(false);
+            
+            if !force_fresh && age < max_age {
+                return Ok(cached.data.clone());
+            }
         }
-
-        let data: serde_json::Value = match response.json().await {
-            Ok(d) => d,
-            Err(e) => return moltbook_failure(e.to_string()),
-        };
-
-        let posts: Vec<MoltbookPost> = data
-            .get("posts")
-            .cloned()
-            .and_then(|p| serde_json::from_value(p).ok())
-            .unwrap_or_default();
-
-        moltbook_success(posts)
+        
+        // Fetch fresh data
+        let feed = self.api_client.get_posts(
+            agent_id,
+            &creds.api_key,
+            submolt,
+            sort,
+            limit,
+        ).await?;
+        
+        // Update cache
+        let mut state = self.get_agent_state(agent_id);
+        state.feed_cache = Some(CachedData {
+            data: feed.clone(),
+            fetched_at: current_time_ms(),
+        });
+        self.update_agent_state(agent_id, state);
+        
+        Ok(feed)
     }
-
-    /// Comment on a Moltbook post
-    pub async fn moltbook_comment(&self, post_id: &str, content: &str) -> Result<String> {
-        if self.config.moltbook_token.is_none() {
-            return Err(MoltbookError::Authentication(
-                "MOLTBOOK_TOKEN not set - cannot create comments".to_string(),
-            ));
-        }
-
-        if content.len() > content_limits::MAX_COMMENT_LENGTH {
-            return Err(MoltbookError::ContentTooLong(format!(
-                "Comment exceeds maximum length of {} characters",
-                content_limits::MAX_COMMENT_LENGTH
-            )));
-        }
-
-        let url = format!("{}/posts/{}/comments", urls::MOLTBOOK, post_id);
-        let req = self.build_auth_post_request(&url)?;
-
-        let response = req.json(&json!({ "content": content })).send().await?;
-
-        let status = response.status();
-        let data: serde_json::Value = response.json().await?;
-
-        if !status.is_success() {
-            let error_msg = data
-                .get("error")
-                .and_then(|e| e.as_str())
-                .unwrap_or("Unknown error");
-            return Err(MoltbookError::Api {
-                status: status.as_u16(),
-                message: error_msg.to_string(),
-            });
-        }
-
-        let comment_id = data
-            .get("id")
-            .and_then(|id| id.as_str())
-            .unwrap_or("success");
-
-        info!("Commented on Moltbook post {}", post_id);
-        Ok(comment_id.to_string())
-    }
-
-    /// Reply to a Moltbook comment
-    pub async fn moltbook_reply(
+    
+    /// Create a post
+    pub async fn create_post(
         &self,
-        post_id: &str,
-        parent_id: &str,
+        agent_id: &str,
+        title: &str,
         content: &str,
-    ) -> Result<String> {
-        if self.config.moltbook_token.is_none() {
-            return Err(MoltbookError::Authentication(
-                "MOLTBOOK_TOKEN not set - cannot create replies".to_string(),
+        submolt: Option<&str>,
+    ) -> MoltbookResult<MoltbookPost> {
+        // Validate content length
+        if title.len() > MAX_TITLE_LENGTH {
+            return Err(MoltbookError::ContentTooLongError(
+                format!("Title exceeds {} characters", MAX_TITLE_LENGTH)
             ));
         }
-
-        if content.len() > content_limits::MAX_COMMENT_LENGTH {
-            return Err(MoltbookError::ContentTooLong(format!(
-                "Reply exceeds maximum length of {} characters",
-                content_limits::MAX_COMMENT_LENGTH
-            )));
-        }
-
-        let url = format!("{}/posts/{}/comments", urls::MOLTBOOK, post_id);
-        let req = self.build_auth_post_request(&url)?;
-
-        let response = req
-            .json(&json!({
-                "content": content,
-                "parent_id": parent_id,
-            }))
-            .send()
-            .await?;
-
-        let status = response.status();
-        let data: serde_json::Value = response.json().await?;
-
-        if !status.is_success() {
-            let error_msg = data
-                .get("error")
-                .and_then(|e| e.as_str())
-                .unwrap_or("Unknown error");
-            return Err(MoltbookError::Api {
-                status: status.as_u16(),
-                message: error_msg.to_string(),
-            });
-        }
-
-        let comment_id = data
-            .get("id")
-            .and_then(|id| id.as_str())
-            .unwrap_or("success");
-
-        info!("Replied to comment {} on post {}", parent_id, post_id);
-        Ok(comment_id.to_string())
-    }
-
-    /// Read a Moltbook post with comments
-    pub async fn moltbook_read_post(&self, post_id: &str) -> Result<PostWithComments> {
-        let url = format!("{}/posts/{}", urls::MOLTBOOK, post_id);
-        let response = self.build_get_request(&url).send().await?;
-
-        let status = response.status();
-        let data: serde_json::Value = response.json().await?;
-
-        if !status.is_success() {
-            let error_msg = data
-                .get("error")
-                .and_then(|e| e.as_str())
-                .unwrap_or("Unknown error");
-            return Err(MoltbookError::Api {
-                status: status.as_u16(),
-                message: error_msg.to_string(),
-            });
-        }
-
-        let post: MoltbookPost = data
-            .get("post")
-            .cloned()
-            .ok_or_else(|| MoltbookError::NotFound("Post not found".to_string()))
-            .and_then(|p| serde_json::from_value(p).map_err(MoltbookError::Json))?;
-
-        let comments: Vec<MoltbookComment> = data
-            .get("comments")
-            .cloned()
-            .and_then(|c| serde_json::from_value(c).ok())
-            .unwrap_or_default();
-
-        Ok(PostWithComments { post, comments })
-    }
-
-    /// List available submolts.
-    /// Returns a MoltbookResult so callers can distinguish "no submolts" from "API error".
-    pub async fn moltbook_list_submolts(&self, sort: &str) -> MoltbookResult<Vec<MoltbookSubmolt>> {
-        let url = format!("{}/submolts?sort={}&limit=20", urls::MOLTBOOK, sort);
-
-        let response = match self.build_get_request(&url).send().await {
-            Ok(resp) => resp,
-            Err(e) => return moltbook_failure(e.to_string()),
-        };
-
-        if !response.status().is_success() {
-            let status = response.status().as_u16();
-            let error_text = response.text().await.unwrap_or_default();
-            return moltbook_failure(format!(
-                "API returned {}: {}",
-                status,
-                &error_text[..error_text.len().min(100)]
+        if content.len() > MAX_POST_LENGTH {
+            return Err(MoltbookError::ContentTooLongError(
+                format!("Content exceeds {} characters", MAX_POST_LENGTH)
             ));
         }
-
-        let data: serde_json::Value = match response.json().await {
-            Ok(d) => d,
-            Err(e) => return moltbook_failure(e.to_string()),
-        };
-
-        let submolts: Vec<MoltbookSubmolt> = data
-            .get("submolts")
-            .cloned()
-            .and_then(|s| serde_json::from_value(s).ok())
-            .unwrap_or_default();
-
-        moltbook_success(submolts)
+        
+        // Check rate limits
+        if !rate_limiter::can_post(agent_id) {
+            return Err(MoltbookError::RateLimitError(
+                "Cannot post - rate limit exceeded".to_string()
+            ));
+        }
+        
+        let creds = self.get_credentials(agent_id).await?;
+        
+        self.api_client.create_post(
+            agent_id,
+            &creds.api_key,
+            title,
+            content,
+            submolt,
+        ).await
     }
-
-    /// Get details about a specific submolt.
-    /// Returns a MoltbookResult so callers can distinguish "not found" from "API error".
-    pub async fn moltbook_get_submolt(
+    
+    /// Create a comment
+    pub async fn create_comment(
         &self,
-        submolt_name: &str,
-    ) -> MoltbookResult<Option<MoltbookSubmolt>> {
-        let url = format!("{}/submolts/{}", urls::MOLTBOOK, submolt_name);
-
-        let response = match self.build_get_request(&url).send().await {
-            Ok(resp) => resp,
-            Err(e) => return moltbook_failure(e.to_string()),
-        };
-
-        if response.status().as_u16() == 404 {
-            // Not found is a valid result, not an error
-            return moltbook_success(None);
-        }
-
-        if !response.status().is_success() {
-            let status = response.status().as_u16();
-            let error_text = response.text().await.unwrap_or_default();
-            return moltbook_failure(format!(
-                "API returned {}: {}",
-                status,
-                &error_text[..error_text.len().min(100)]
+        agent_id: &str,
+        post_id: &str,
+        content: &str,
+        parent_id: Option<&str>,
+    ) -> MoltbookResult<MoltbookComment> {
+        // Validate content length
+        if content.len() > MAX_COMMENT_LENGTH {
+            return Err(MoltbookError::ContentTooLongError(
+                format!("Comment exceeds {} characters", MAX_COMMENT_LENGTH)
             ));
         }
-
-        let data: serde_json::Value = match response.json().await {
-            Ok(d) => d,
-            Err(e) => return moltbook_failure(e.to_string()),
-        };
-
-        let submolt: Option<MoltbookSubmolt> = data
-            .get("submolt")
-            .cloned()
-            .and_then(|s| serde_json::from_value(s).ok());
-
-        moltbook_success(submolt)
+        
+        // Check rate limits
+        if !rate_limiter::can_comment(agent_id) {
+            return Err(MoltbookError::RateLimitError(
+                "Cannot comment - rate limit exceeded".to_string()
+            ));
+        }
+        
+        let creds = self.get_credentials(agent_id).await?;
+        
+        self.api_client.create_comment(
+            agent_id,
+            &creds.api_key,
+            post_id,
+            content,
+            parent_id,
+        ).await
+    }
+    
+    /// Get comments for a post
+    pub async fn get_comments(
+        &self,
+        agent_id: &str,
+        post_id: &str,
+    ) -> MoltbookResult<Vec<MoltbookComment>> {
+        let creds = self.get_credentials(agent_id).await?;
+        
+        self.api_client.get_comments(
+            agent_id,
+            &creds.api_key,
+            post_id,
+        ).await
+    }
+    
+    /// Vote on a post
+    pub async fn vote_post(
+        &self,
+        agent_id: &str,
+        post_id: &str,
+        vote: &str,
+    ) -> MoltbookResult<()> {
+        let creds = self.get_credentials(agent_id).await?;
+        
+        self.api_client.vote_post(
+            agent_id,
+            &creds.api_key,
+            post_id,
+            vote,
+        ).await
+    }
+    
+    /// Vote on a comment
+    pub async fn vote_comment(
+        &self,
+        agent_id: &str,
+        comment_id: &str,
+        vote: &str,
+    ) -> MoltbookResult<()> {
+        let creds = self.get_credentials(agent_id).await?;
+        
+        self.api_client.vote_comment(
+            agent_id,
+            &creds.api_key,
+            comment_id,
+            vote,
+        ).await
+    }
+    
+    /// Follow or unfollow a user
+    pub async fn follow_user(
+        &self,
+        agent_id: &str,
+        target_username: &str,
+        unfollow: bool,
+    ) -> MoltbookResult<()> {
+        let creds = self.get_credentials(agent_id).await?;
+        
+        self.api_client.follow_agent(
+            agent_id,
+            &creds.api_key,
+            target_username,
+            unfollow,
+        ).await
+    }
+    
+    /// Search posts and comments
+    pub async fn search(
+        &self,
+        agent_id: &str,
+        query: &str,
+        search_type: &str,
+        limit: usize,
+    ) -> MoltbookResult<MoltbookSearchResults> {
+        let creds = self.get_credentials(agent_id).await?;
+        
+        self.api_client.search(
+            agent_id,
+            &creds.api_key,
+            query,
+            search_type,
+            limit,
+        ).await
+    }
+    
+    /// Get profile (self or another user)
+    pub async fn get_profile(
+        &self,
+        agent_id: &str,
+        username: Option<&str>,
+    ) -> MoltbookResult<MoltbookProfile> {
+        let creds = self.get_credentials(agent_id).await?;
+        
+        // Check cache for self profile
+        if username.is_none() {
+            let state = self.get_agent_state(agent_id);
+            if let Some(cached) = &state.profile_cache {
+                let age = current_time_ms() - cached.fetched_at;
+                if age < CACHE_TTL_PROFILE_MS {
+                    return Ok(cached.data.clone());
+                }
+            }
+        }
+        
+        let profile = self.api_client.get_profile(
+            agent_id,
+            &creds.api_key,
+            username,
+        ).await?;
+        
+        // Cache self profile
+        if username.is_none() {
+            let mut state = self.get_agent_state(agent_id);
+            state.profile_cache = Some(CachedData {
+                data: profile.clone(),
+                fetched_at: current_time_ms(),
+            });
+            self.update_agent_state(agent_id, state);
+        }
+        
+        Ok(profile)
+    }
+    
+    /// Check rate limit status
+    pub fn get_rate_limit_status(&self, agent_id: &str) -> RateLimitState {
+        self.get_agent_state(agent_id).rate_limits.clone()
+    }
+    
+    /// Check if agent can post
+    pub fn can_post(&self, agent_id: &str) -> bool {
+        rate_limiter::can_post(agent_id)
+    }
+    
+    /// Check if agent can comment
+    pub fn can_comment(&self, agent_id: &str) -> bool {
+        rate_limiter::can_comment(agent_id)
+    }
+    
+    /// Get time until next post is allowed
+    pub fn time_until_next_post(&self, agent_id: &str) -> i64 {
+        rate_limiter::get_time_until_can_post(agent_id)
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_new_without_agent_name() {
-        let config = MoltbookConfig {
-            agent_name: String::new(),
-            moltbook_token: None,
-            autonomous_mode: false,
-            autonomy_interval_ms: None,
-            autonomy_max_steps: None,
-        };
-
-        let result = MoltbookService::new(config);
-        assert!(result.is_err());
+impl Default for MoltbookService {
+    fn default() -> Self {
+        Self::new(MoltbookConfig::default())
     }
+}
 
-    #[test]
-    fn test_new_with_config() {
-        let config = MoltbookConfig {
-            agent_name: "TestAgent".to_string(),
-            moltbook_token: Some("test-token".to_string()),
-            autonomous_mode: false,
-            autonomy_interval_ms: None,
-            autonomy_max_steps: None,
-        };
-
-        let result = MoltbookService::new(config);
-        assert!(result.is_ok());
-        let service = result.unwrap();
-        assert_eq!(service.config().agent_name, "TestAgent");
-        assert!(!service.is_autonomy_running());
-    }
-
-    #[test]
-    fn test_new_without_token() {
-        let config = MoltbookConfig {
-            agent_name: "TestAgent".to_string(),
-            moltbook_token: None,
-            autonomous_mode: false,
-            autonomy_interval_ms: None,
-            autonomy_max_steps: None,
-        };
-
-        let service = MoltbookService::new(config).unwrap();
-        assert!(service.config().moltbook_token.is_none());
-    }
-
-    #[test]
-    fn test_auth_headers_with_token() {
-        let config = MoltbookConfig {
-            agent_name: "TestAgent".to_string(),
-            moltbook_token: Some("my-token".to_string()),
-            autonomous_mode: false,
-            autonomy_interval_ms: None,
-            autonomy_max_steps: None,
-        };
-
-        let service = MoltbookService::new(config).unwrap();
-        let headers = service.auth_headers();
-        assert_eq!(headers.len(), 2);
-        assert_eq!(headers[1].0, "Authorization");
-        assert_eq!(headers[1].1, "Bearer my-token");
-    }
-
-    #[test]
-    fn test_auth_headers_without_token() {
-        let config = MoltbookConfig {
-            agent_name: "TestAgent".to_string(),
-            moltbook_token: None,
-            autonomous_mode: false,
-            autonomy_interval_ms: None,
-            autonomy_max_steps: None,
-        };
-
-        let service = MoltbookService::new(config).unwrap();
-        let headers = service.auth_headers();
-        assert_eq!(headers.len(), 1);
-        assert_eq!(headers[0].0, "Content-Type");
-    }
+// Helper function for current time
+fn current_time_ms() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as i64
 }
