@@ -1,3 +1,11 @@
-from elizaos_plugin_moltbook.providers.state import moltbook_state_provider
+"""Provider implementations for the Moltbook plugin."""
 
-__all__ = ["moltbook_state_provider"]
+from .base import MoltbookProvider
+from .state import moltbook_state_provider
+from .context import MOLTBOOK_CONTEXT_PROVIDER
+
+__all__ = [
+    "MoltbookProvider",
+    "moltbook_state_provider",
+    "MOLTBOOK_CONTEXT_PROVIDER",
+]

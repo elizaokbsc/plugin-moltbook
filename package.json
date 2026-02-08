@@ -1,47 +1,86 @@
 {
-  "name": "@elizaos/plugin-moltbook-root",
-  "private": true,
+  "name": "@elizaos/plugin-moltbook",
+  "description": "Moltbook social integration plugin for elizaOS - community participation for AI agents",
   "version": "1.0.0",
   "type": "module",
-  "description": "Moltbook social plugin for Eliza agents - Reddit-style platform for AI agents",
-  "main": "typescript/dist/index.js",
-  "types": "typescript/dist/index.d.ts",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "packageType": "plugin",
+  "platform": "node",
+  "license": "MIT",
+  "keywords": [
+    "plugin",
+    "elizaos",
+    "moltbook",
+    "social",
+    "ai-agents"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/elizaos/eliza"
+  },
+  "homepage": "https://moltbook.com",
   "exports": {
     "./package.json": "./package.json",
     ".": {
       "import": {
-        "types": "./typescript/dist/index.d.ts",
-        "default": "./typescript/dist/index.js"
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
       }
     }
   },
   "files": [
-    "typescript/dist"
+    "dist",
+    "README.md",
+    "package.json",
+    "tsup.config.ts"
   ],
-  "scripts": {
-    "build": "bun run build:ts && bun run build:rust && bun run build:python",
-    "build:ts": "cd typescript && bun run build",
-    "build:python": "test -n \"$SKIP_PYTHON_BUILD\" && echo \"Python build skipped (SKIP_PYTHON_BUILD set)\" || (test -d python && cd python && (timeout 120 python3 -m build 2>/dev/null || timeout 120 pyproject-build 2>/dev/null) || echo \"Python build skipped or timed out\")",
-    "build:rust": "test -d rust && cd rust && cargo build --release || echo \"Rust build skipped - no rust directory\"",
-    "dev": "cd typescript && bun run dev",
-    "test": "bun run test:ts && bun run test:rust && bun run test:python",
-    "test:ts": "cd typescript && bun run test",
-    "test:rust": "test -d rust && cd rust && cargo test || echo \"Rust tests skipped\"",
-    "test:python": "test -d python && cd python && pytest -p no:anchorpy --asyncio-mode=auto || echo \"Python tests skipped\"",
-    "lint": "bunx @biomejs/biome check --write ./typescript",
-    "lint:rust": "test -d rust && cd rust && cargo clippy --all-targets --fix --allow-dirty --allow-staged -- -D warnings && cargo fmt || echo \"Rust lint skipped\"",
-    "lint:python": "test -d python && cd python && ruff check --fix . && ruff format . || echo \"Python lint skipped\"",
-    "typecheck": "cd typescript && tsc --noEmit",
-    "clean": "rm -rf typescript/dist python/dist rust/target .turbo node_modules",
-    "lint:check": "bunx @biomejs/biome check ./typescript",
-    "format": "bunx @biomejs/biome format --write ./typescript",
-    "format:check": "bunx @biomejs/biome format ./typescript",
-    "typecheck:python": "test -d python && cd python && mypy . --ignore-missing-imports || echo 'Python typecheck skipped'",
-    "typecheck:rust": "test -d rust && cd rust && cargo check || echo 'Rust typecheck skipped'"
+  "dependencies": {
+    "@elizaos/core": "workspace:*",
+    "zod": "4.1.11"
   },
   "devDependencies": {
-    "@types/node": "^25.0.3",
-    "typescript": "^5.9.3",
-    "@biomejs/biome": "^2.3.11"
+    "tsup": "8.5.0",
+    "typescript": "5.8.2",
+    "prettier": "3.5.3",
+    "bun-types": "^1.2.21"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "bun test",
+    "test:watch": "bun test --watch",
+    "test:coverage": "bun test --coverage",
+    "lint": "prettier --write ./src",
+    "format": "prettier --write ./src",
+    "format:check": "prettier --check ./src"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "agentConfig": {
+    "pluginType": "elizaos:plugin:1.0.0",
+    "pluginParameters": {
+      "MOLTBOOK_API_KEY": {
+        "type": "string",
+        "description": "Optional pre-existing Moltbook API key"
+      },
+      "MOLTBOOK_AUTO_REGISTER": {
+        "type": "boolean",
+        "description": "Auto-register new account if no credentials exist",
+        "default": true
+      },
+      "MOLTBOOK_AUTO_ENGAGE": {
+        "type": "boolean",
+        "description": "Enable autonomous posting and engagement",
+        "default": true
+      },
+      "MOLTBOOK_MIN_QUALITY_SCORE": {
+        "type": "number",
+        "description": "Minimum quality score (1-10) for autonomous posts",
+        "default": 7
+      }
+    }
   }
 }

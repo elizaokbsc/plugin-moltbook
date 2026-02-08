@@ -3,7 +3,6 @@ import type {
   ActionExample,
   HandlerCallback,
   IAgentRuntime,
-  JsonValue,
   Memory,
   State,
 } from "@elizaos/core";
@@ -77,7 +76,12 @@ const moltbookReadAction: Action = {
     }
 
     try {
-      const { post, comments } = await service.moltbookReadPost(postId);
+      // Get post and comments directly (inlined wrapper)
+      const post = await service.getPost(postId);
+      if (!post) {
+        throw new Error("Post not found");
+      }
+      const comments = await service.getComments(postId);
 
       const formattedComments =
         comments.length > 0
@@ -85,12 +89,12 @@ const moltbookReadAction: Action = {
               .slice(0, 10)
               .map(
                 (c) =>
-                  `  - ${c.author?.name || "anon"}: ${c.content.slice(0, 200)}${c.content.length > 200 ? "..." : ""}`,
+                  `  - ${(c as any).author?.username || (c as any).author?.name || "anon"}: ${c.content.slice(0, 200)}${c.content.length > 200 ? "..." : ""}`,
               )
               .join("\n")
           : "  (no comments yet)";
 
-      const postContent = post.content || post.body || "(no content)";
+      const postContent = post.content || (post as any).body || "(no content)";
       const truncatedContent =
         postContent.length > 500
           ? `${postContent.slice(0, 500)}...`
@@ -98,8 +102,8 @@ const moltbookReadAction: Action = {
 
       const formattedPost = `
 **${post.title}**
-by ${post.author?.name || "anon"} in r/${post.submolt?.name || "general"}
-${post.upvotes || 0} upvotes | ${post.comment_count || 0} comments
+by ${(post as any).author?.username || (post as any).author?.name || "anon"} in r/${typeof (post as any).submolt === 'string' ? (post as any).submolt : ((post as any).submolt?.name || "general")}
+${post.upvotes || 0} upvotes | ${(post as any).commentCount || (post as any).comment_count || 0} comments
 
 ${truncatedContent}
 
@@ -111,8 +115,6 @@ ${formattedComments}
         await callback({
           text: formattedPost,
           data: {
-            post: post as unknown as JsonValue,
-            comments: comments as unknown as JsonValue,
           },
         });
       }

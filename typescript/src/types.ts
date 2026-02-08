@@ -1,4 +1,310 @@
 /**
+ * Moltbook Plugin Type Definitions
+ * https://www.moltbook.com
+ */
+
+import type { UUID } from '@elizaos/core';
+
+// =============================================================================
+// API TYPES
+// =============================================================================
+
+/**
+ * A Moltbook user profile
+ */
+export interface MoltbookProfile {
+  id: string;
+  username: string;
+  displayName?: string;
+  bio?: string;
+  avatarUrl?: string;
+  createdAt: string;
+  followerCount: number;
+  followingCount: number;
+  postCount: number;
+  isFollowing?: boolean;
+}
+
+/**
+ * A Moltbook post (molty)
+ */
+export interface MoltbookPost {
+  id: string;
+  title: string;
+  content: string;
+  authorId: string;
+  author: MoltbookProfile;
+  submolt?: string;
+  createdAt: string;
+  updatedAt?: string;
+  upvotes: number;
+  downvotes: number;
+  score: number;
+  commentCount: number;
+  url?: string;
+}
+
+/**
+ * A comment on a post
+ */
+export interface MoltbookComment {
+  id: string;
+  postId: string;
+  parentId?: string;
+  content: string;
+  authorId: string;
+  author: MoltbookProfile;
+  createdAt: string;
+  upvotes: number;
+  downvotes: number;
+  score: number;
+  replies?: MoltbookComment[];
+}
+
+/**
+ * A submolt (community/subreddit equivalent)
+ */
+export interface MoltbookSubmolt {
+  id: string;
+  name: string;
+  description?: string;
+  memberCount: number;
+  postCount: number;
+  createdAt: string;
+  rules?: string[];
+}
+
+/**
+ * Feed response from API
+ */
+export interface MoltbookFeed {
+  posts: MoltbookPost[];
+  hasMore: boolean;
+  cursor?: string;
+}
+
+/**
+ * Search result item (post or comment)
+ */
+export interface MoltbookSearchResult {
+  id: string;
+  type: 'post' | 'comment';
+  title: string | null;
+  content: string;
+  upvotes: number;
+  downvotes: number;
+  created_at: string;
+  similarity: number;
+  author: { name: string };
+  submolt?: { name: string; display_name: string };
+  post_id: string;
+  post?: { id: string; title: string };
+}
+
+/**
+ * Search results from semantic search API
+ */
+export interface MoltbookSearchResults {
+  success: boolean;
+  query: string;
+  type: string;
+  results: MoltbookSearchResult[];
+  count: number;
+}
+
+// =============================================================================
+// CREDENTIAL TYPES
+// =============================================================================
+
+/**
+ * Stored credentials for a Moltbook account
+ */
+export interface MoltbookCredentials {
+  apiKey: string;
+  userId: string;
+  username: string;
+  registeredAt: number;
+  claimStatus?: 'unclaimed' | 'claimed';
+  claimUrl?: string;
+}
+
+// =============================================================================
+// RATE LIMITING TYPES
+// =============================================================================
+
+/**
+ * Rate limit state per agent
+ */
+export interface RateLimitState {
+  requests: { timestamp: number }[];
+  posts: { timestamp: number }[];
+  comments: { timestamp: number }[];
+  retryAfter?: number;
+}
+
+/**
+ * Per-agent state including rate limits and cache
+ */
+export interface AgentMoltbookState {
+  credentials?: MoltbookCredentials;
+  rateLimits: RateLimitState;
+  feedCache?: CachedData<MoltbookFeed>;
+  profileCache?: CachedData<MoltbookProfile>;
+}
+
+// =============================================================================
+// CACHE TYPES
+// =============================================================================
+
+/**
+ * Cached data with freshness tracking
+ */
+export interface CachedData<T> {
+  data: T;
+  fetchedAt: number;
+}
+
+/**
+ * Cache options for fetch operations
+ */
+export interface CacheOptions {
+  /** Maximum age in milliseconds */
+  maxAge?: number;
+  /** Require data newer than this timestamp */
+  newerThan?: number;
+  /** Force fresh fetch, bypass cache */
+  forceFresh?: boolean;
+}
+
+// =============================================================================
+// INTELLIGENCE TYPES
+// =============================================================================
+
+/**
+ * Community analysis results
+ */
+export interface CommunityContext {
+  /** Hot topics being discussed */
+  activeTopics: string[];
+  /** Posts worth engaging with */
+  engagementOpportunities: EngagementOpportunity[];
+  /** Posting patterns that work well */
+  whatWorks: string[];
+  /** Notable community members */
+  notableMoltys: MoltbookProfile[];
+  /** Overall community vibe */
+  vibe: string;
+  /** When this analysis was generated */
+  analyzedAt: number;
+}
+
+/**
+ * A specific engagement opportunity
+ */
+export interface EngagementOpportunity {
+  post: MoltbookPost;
+  reason: string;
+  type: 'comment' | 'upvote' | 'follow';
+  priority: number;
+}
+
+// =============================================================================
+// QUALITY GATE TYPES
+// =============================================================================
+
+/**
+ * Quality assessment criteria
+ */
+export interface QualityScore {
+  relevance: number; // 1-10: Is this relevant to the community?
+  interestingness: number; // 1-10: Would someone want to read this?
+  originality: number; // 1-10: Is this a fresh perspective?
+  voice: number; // 1-10: Does it sound like the character?
+  value: number; // 1-10: Does it add value to the conversation?
+  overall: number; // Average of all scores
+  feedback: string; // Specific improvement suggestions
+  pass: boolean; // Meets minimum threshold
+}
+
+/**
+ * Content to be judged
+ */
+export interface ContentToJudge {
+  title?: string;
+  content: string;
+  context?: string;
+  isComment?: boolean;
+}
+
+// =============================================================================
+// SERVICE TYPES
+// =============================================================================
+
+/**
+ * Service configuration
+ */
+export interface MoltbookConfig {
+  /** Base API URL */
+  apiUrl: string;
+  /** Auto-register if no credentials */
+  autoRegister: boolean;
+  /** Enable autonomous posting */
+  autoEngage: boolean;
+  /** Minimum quality score to post (1-10) */
+  minQualityScore: number;
+  /** Maximum retries for composition */
+  maxComposeRetries: number;
+}
+
+/**
+ * Memory table names used by the plugin
+ */
+export const MEMORY_TABLES = {
+  CREDENTIALS: 'moltbook_credentials',
+  POSTS_SEEN: 'moltbook_posts_seen',
+  INTERACTIONS: 'moltbook_interactions',
+  MOLTYS: 'moltbook_moltys',
+} as const;
+
+/**
+ * Memory metadata for credential storage
+ */
+export interface CredentialMemoryMetadata {
+  type: 'moltbook_credentials';
+  credentials: MoltbookCredentials;
+  [key: string]: unknown;
+}
+
+/**
+ * Memory metadata for seen posts
+ */
+export interface PostSeenMemoryMetadata {
+  type: 'moltbook_post_seen';
+  postId: string;
+  seenAt: number;
+  engaged: boolean;
+  engagementType?: 'upvote' | 'downvote' | 'comment';
+  [key: string]: unknown;
+}
+
+/**
+ * Memory metadata for interactions
+ */
+export interface InteractionMemoryMetadata {
+  type: 'moltbook_interaction';
+  postId?: string;
+  commentId?: string;
+  interactionType: 'post' | 'comment' | 'vote' | 'follow';
+  content?: string;
+  createdAt: number;
+  [key: string]: unknown;
+}
+
+// =============================================================================
+// NEW: Types from next branch for enhanced functionality
+// =============================================================================
+
+/**
  * Moltbook service settings from environment/character config
  */
 export interface MoltbookSettings {
@@ -20,55 +326,6 @@ export interface MoltbookSettings {
   autonomyMaxSteps?: number;
   /** Whether to run in autonomous mode */
   autonomousMode?: boolean;
-}
-
-/**
- * Moltbook post structure
- * Index signature allows compatibility with JsonValue
- */
-export interface MoltbookPost {
-  id: string;
-  title: string;
-  content?: string;
-  body?: string;
-  submolt?: { name: string; [key: string]: string };
-  author?: { name: string; [key: string]: string };
-  upvotes?: number;
-  comment_count?: number;
-  created_at?: string;
-  [key: string]:
-    | string
-    | number
-    | undefined
-    | { name: string; [key: string]: string };
-}
-
-/**
- * Moltbook comment structure
- * Index signature allows compatibility with JsonValue
- */
-export interface MoltbookComment {
-  id: string;
-  content: string;
-  author?: { name: string; [key: string]: string };
-  created_at?: string;
-  parent_id?: string;
-  [key: string]: string | undefined | { name: string; [key: string]: string };
-}
-
-/**
- * Moltbook submolt (subreddit equivalent) structure
- * Index signature allows compatibility with JsonValue
- */
-export interface MoltbookSubmolt {
-  id: string;
-  name: string;
-  description?: string;
-  subscriber_count?: number;
-  post_count?: number;
-  created_at?: string;
-  icon_url?: string;
-  [key: string]: string | number | undefined;
 }
 
 /**
@@ -139,41 +396,25 @@ export function moltbookFailure<T>(error: string): MoltbookResult<T> {
 
 /**
  * IMoltbookService interface for type-safe service access
+ * Core methods from consolidated 1.x + next implementation
  */
 export interface IMoltbookService {
   /** Service type identifier */
   readonly serviceType: string;
-  /** Post to Moltbook */
-  moltbookPost(
-    submolt: string,
-    title: string,
-    content: string,
-  ): Promise<string>;
-  /** Browse Moltbook posts - returns Result to distinguish empty from error */
-  moltbookBrowse(
-    submolt?: string,
-    sort?: string,
-  ): Promise<MoltbookResult<MoltbookPost[]>>;
-  /** Comment on a Moltbook post */
-  moltbookComment(postId: string, content: string): Promise<string>;
-  /** Reply to a Moltbook comment */
-  moltbookReply(
-    postId: string,
-    parentId: string,
-    content: string,
-  ): Promise<string>;
-  /** Read a Moltbook post with comments */
-  moltbookReadPost(
-    postId: string,
-  ): Promise<{ post: MoltbookPost; comments: MoltbookComment[] }>;
-  /** List available submolts - returns Result to distinguish empty from error */
-  moltbookListSubmolts(
-    sort?: string,
-  ): Promise<MoltbookResult<MoltbookSubmolt[]>>;
-  /** Get submolt details - returns Result to distinguish not-found from error */
-  moltbookGetSubmolt(
-    submoltName: string,
-  ): Promise<MoltbookResult<MoltbookSubmolt | null>>;
+  /** Create a post */
+  createPost(title: string, content: string, submolt?: string): Promise<MoltbookPost | null>;
+  /** Create a comment or reply */
+  createComment(postId: string, content: string, parentId?: string): Promise<MoltbookComment | null>;
+  /** Get posts feed */
+  getPosts(options?: any): Promise<MoltbookFeed | null>;
+  /** Get a single post */
+  getPost(postId: string): Promise<MoltbookPost | null>;
+  /** Get comments for a post */
+  getComments(postId: string): Promise<MoltbookComment[]>;
+  /** Get all submolts */
+  getSubmolts(sort?: string): Promise<MoltbookSubmolt[] | null>;
+  /** Get a specific submolt */
+  getSubmolt(name: string): Promise<MoltbookSubmolt | null>;
   /** Start autonomous loop */
   startAutonomyLoop(): void;
   /** Stop autonomous loop */

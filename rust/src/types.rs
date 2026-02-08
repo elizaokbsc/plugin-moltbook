@@ -1,229 +1,357 @@
-#![allow(missing_docs)]
+// Moltbook Plugin Type Definitions
+// https://www.moltbook.com
+//
+// Rust port of TypeScript types from plugin-moltbook/typescript/src/types.ts
 
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
-/// Configuration for the Moltbook service
-#[derive(Debug, Clone)]
-pub struct MoltbookConfig {
-    /// Agent display name
-    pub agent_name: String,
-    /// Moltbook API token for social engagement
-    pub moltbook_token: Option<String>,
-    /// Whether autonomy mode is enabled
-    pub autonomous_mode: bool,
-    /// Autonomy loop interval in ms
-    pub autonomy_interval_ms: Option<u64>,
-    /// Maximum autonomy steps before stopping (0 = unlimited)
-    pub autonomy_max_steps: Option<u32>,
+// =============================================================================
+// API TYPES
+// =============================================================================
+
+/// A Moltbook user profile
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MoltbookProfile {
+    pub id: String,
+    pub username: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bio: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub avatar_url: Option<String>,
+    pub created_at: String,
+    pub follower_count: i32,
+    pub following_count: i32,
+    pub post_count: i32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_following: Option<bool>,
 }
 
-/// Moltbook post author
+/// A Moltbook post (molty)
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MoltbookAuthor {
-    pub name: String,
-    #[serde(flatten)]
-    pub extra: std::collections::HashMap<String, serde_json::Value>,
-}
-
-/// Moltbook submolt reference on a post
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MoltbookSubmoltRef {
-    pub name: String,
-    #[serde(flatten)]
-    pub extra: std::collections::HashMap<String, serde_json::Value>,
-}
-
-/// Moltbook post structure
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct MoltbookPost {
     pub id: String,
     pub title: String,
+    pub content: String,
+    pub author_id: String,
+    pub author: MoltbookProfile,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub content: Option<String>,
+    pub submolt: Option<String>,
+    pub created_at: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub body: Option<String>,
+    pub updated_at: Option<String>,
+    pub upvotes: i32,
+    pub downvotes: i32,
+    pub score: i32,
+    pub comment_count: i32,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub submolt: Option<MoltbookSubmoltRef>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub author: Option<MoltbookAuthor>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub upvotes: Option<i64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub comment_count: Option<i64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub created_at: Option<String>,
+    pub url: Option<String>,
 }
 
-/// Moltbook comment structure
+/// A comment on a post
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct MoltbookComment {
     pub id: String,
-    pub content: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub author: Option<MoltbookAuthor>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub created_at: Option<String>,
+    pub post_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parent_id: Option<String>,
+    pub content: String,
+    pub author_id: String,
+    pub author: MoltbookProfile,
+    pub created_at: String,
+    pub upvotes: i32,
+    pub downvotes: i32,
+    pub score: i32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub replies: Option<Vec<MoltbookComment>>,
 }
 
-/// Moltbook submolt (subreddit equivalent) structure
+/// A submolt (community/subreddit equivalent)
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct MoltbookSubmolt {
     pub id: String,
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+    pub member_count: i32,
+    pub post_count: i32,
+    pub created_at: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub subscriber_count: Option<i64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub post_count: Option<i64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub created_at: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub icon_url: Option<String>,
+    pub rules: Option<Vec<String>>,
 }
 
-/// Event types emitted by the Moltbook service
-pub mod event_types {
-    pub const POST_CREATED: &str = "moltbook.post.created";
-    pub const COMMENT_CREATED: &str = "moltbook.comment.created";
-    pub const POSTS_BROWSED: &str = "moltbook.posts.browsed";
-    pub const POST_READ: &str = "moltbook.post.read";
-    pub const AUTONOMY_STEP_COMPLETED: &str = "moltbook.autonomy.step.completed";
-    pub const AUTONOMY_STARTED: &str = "moltbook.autonomy.started";
-    pub const AUTONOMY_STOPPED: &str = "moltbook.autonomy.stopped";
-}
-
-/// Payload for post events
+/// Feed response from API
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MoltbookPostPayload {
+#[serde(rename_all = "camelCase")]
+pub struct MoltbookFeed {
+    pub posts: Vec<MoltbookPost>,
+    pub has_more: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cursor: Option<String>,
+}
+
+/// Search result item
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MoltbookSearchResult {
+    pub id: String,
+    #[serde(rename = "type")]
+    pub result_type: String, // "post" or "comment"
+    pub title: Option<String>,
+    pub content: String,
+    pub upvotes: i32,
+    pub downvotes: i32,
+    pub created_at: String,
+    pub similarity: f32,
+    pub author: HashMap<String, String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub submolt: Option<HashMap<String, String>>,
     pub post_id: String,
-    pub submolt: String,
-    pub title: String,
-}
-
-/// Payload for comment events
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MoltbookCommentPayload {
-    pub comment_id: String,
-    pub post_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub parent_id: Option<String>,
+    pub post: Option<HashMap<String, String>>,
 }
 
-/// Payload for autonomy step events
+/// Search results from semantic search API
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MoltbookAutonomyStepPayload {
-    pub step_number: u32,
-    pub action: String,
-    pub result: String,
-    pub timestamp: String,
+pub struct MoltbookSearchResults {
+    pub success: bool,
+    pub query: String,
+    #[serde(rename = "type")]
+    pub search_type: String,
+    pub results: Vec<MoltbookSearchResult>,
+    pub count: usize,
 }
 
-/// Result type for API operations that can fail.
-/// Prevents silent failures by making errors explicit.
+// =============================================================================
+// CREDENTIAL TYPES
+// =============================================================================
+
+/// Stored credentials for a Moltbook account
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MoltbookCredentials {
+    pub api_key: String,
+    pub user_id: String,
+    pub username: String,
+    pub registered_at: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub claim_status: Option<String>, // "unclaimed" or "claimed"
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub claim_url: Option<String>,
+}
+
+// =============================================================================
+// RATE LIMITING TYPES
+// =============================================================================
+
+/// Single rate limit request record
 #[derive(Debug, Clone)]
-pub enum MoltbookResult<T> {
-    Success(T),
-    Failure(String),
+pub struct RateLimitRequest {
+    pub timestamp: i64,
 }
 
-impl<T> MoltbookResult<T> {
-    /// Check if the result is a success
-    pub fn is_success(&self) -> bool {
-        matches!(self, MoltbookResult::Success(_))
-    }
+/// Rate limit state per agent
+#[derive(Debug, Clone)]
+pub struct RateLimitState {
+    pub requests: Vec<RateLimitRequest>,
+    pub posts: Vec<RateLimitRequest>,
+    pub comments: Vec<RateLimitRequest>,
+    pub retry_after: Option<i64>,
+}
 
-    /// Get the data if successful, or None
-    pub fn data(&self) -> Option<&T> {
-        match self {
-            MoltbookResult::Success(data) => Some(data),
-            MoltbookResult::Failure(_) => None,
-        }
-    }
-
-    /// Get the error message if failed, or None
-    pub fn error(&self) -> Option<&str> {
-        match self {
-            MoltbookResult::Success(_) => None,
-            MoltbookResult::Failure(err) => Some(err),
+impl Default for RateLimitState {
+    fn default() -> Self {
+        Self {
+            requests: Vec::new(),
+            posts: Vec::new(),
+            comments: Vec::new(),
+            retry_after: None,
         }
     }
 }
 
-/// Helper to create a successful result
+// =============================================================================
+// CACHE TYPES
+// =============================================================================
+
+/// Cached data with freshness tracking
+#[derive(Debug, Clone)]
+pub struct CachedData<T> {
+    pub data: T,
+    pub fetched_at: i64,
+}
+
+/// Cache options for fetch operations
+#[derive(Debug, Clone, Default)]
+pub struct CacheOptions {
+    /// Maximum age in milliseconds
+    pub max_age: Option<i64>,
+    /// Require data newer than this timestamp
+    pub newer_than: Option<i64>,
+    /// Force fresh fetch, bypass cache
+    pub force_fresh: bool,
+}
+
+/// Per-agent state including rate limits and cache
+#[derive(Debug, Clone)]
+pub struct AgentMoltbookState {
+    pub credentials: Option<MoltbookCredentials>,
+    pub rate_limits: RateLimitState,
+    pub feed_cache: Option<CachedData<MoltbookFeed>>,
+    pub profile_cache: Option<CachedData<MoltbookProfile>>,
+}
+
+impl Default for AgentMoltbookState {
+    fn default() -> Self {
+        Self {
+            credentials: None,
+            rate_limits: RateLimitState::default(),
+            feed_cache: None,
+            profile_cache: None,
+        }
+    }
+}
+
+// =============================================================================
+// INTELLIGENCE TYPES
+// =============================================================================
+
+/// A specific engagement opportunity
+#[derive(Debug, Clone)]
+pub struct EngagementOpportunity {
+    pub post: MoltbookPost,
+    pub reason: String,
+    pub engagement_type: String, // "comment", "upvote", or "follow"
+    pub priority: i32,
+}
+
+/// Community analysis results
+#[derive(Debug, Clone)]
+pub struct CommunityContext {
+    /// Hot topics being discussed
+    pub active_topics: Vec<String>,
+    /// Posts worth engaging with
+    pub engagement_opportunities: Vec<EngagementOpportunity>,
+    /// Posting patterns that work well
+    pub what_works: Vec<String>,
+    /// Notable community members
+    pub notable_moltys: Vec<MoltbookProfile>,
+    /// Overall community vibe
+    pub vibe: String,
+    /// When this analysis was generated
+    pub analyzed_at: i64,
+}
+
+// =============================================================================
+// QUALITY GATE TYPES
+// =============================================================================
+
+/// Quality assessment criteria
+#[derive(Debug, Clone)]
+pub struct QualityScore {
+    pub relevance: i32,        // 1-10
+    pub interestingness: i32,  // 1-10
+    pub originality: i32,      // 1-10
+    pub voice: i32,            // 1-10
+    pub value: i32,            // 1-10
+    pub overall: f32,          // Average
+    pub feedback: String,
+    pub pass: bool,
+}
+
+/// Content to be judged
+#[derive(Debug, Clone)]
+pub struct ContentToJudge {
+    pub title: Option<String>,
+    pub content: String,
+    pub context: Option<String>,
+    pub is_comment: bool,
+}
+
+// =============================================================================
+// SERVICE CONFIGURATION
+// =============================================================================
+
+/// Service configuration
+#[derive(Debug, Clone)]
+pub struct MoltbookConfig {
+    pub api_url: String,
+    pub auto_register: bool,
+    pub auto_engage: bool,
+    pub min_quality_score: i32,
+    pub max_compose_retries: i32,
+}
+
+impl Default for MoltbookConfig {
+    fn default() -> Self {
+        Self {
+            api_url: "https://www.moltbook.com/api/v1".to_string(),
+            auto_register: true,
+            auto_engage: false,
+            min_quality_score: 7,
+            max_compose_retries: 3,
+        }
+    }
+}
+
+// =============================================================================
+// RESULT TYPES
+// =============================================================================
+
+/// Result type for API operations
+pub type MoltbookResult<T> = Result<T, MoltbookError>;
+
+/// Helper to create successful result
 pub fn moltbook_success<T>(data: T) -> MoltbookResult<T> {
-    MoltbookResult::Success(data)
+    Ok(data)
 }
 
-/// Helper to create a failed result
-pub fn moltbook_failure<T>(error: impl Into<String>) -> MoltbookResult<T> {
-    MoltbookResult::Failure(error.into())
+/// Helper to create failed result
+pub fn moltbook_failure<T>(error: String) -> MoltbookResult<T> {
+    Err(MoltbookError::ApiError(error))
 }
+
+// =============================================================================
+// ERROR TYPES
+// =============================================================================
+
+/// Moltbook error types
+#[derive(Debug, thiserror::Error)]
+pub enum MoltbookError {
+    #[error("API error: {0}")]
+    ApiError(String),
+    
+    #[error("Authentication error: {0}")]
+    AuthenticationError(String),
+    
+    #[error("Rate limit error: {0}")]
+    RateLimitError(String),
+    
+    #[error("Content too long: {0}")]
+    ContentTooLongError(String),
+    
+    #[error("Configuration error: {0}")]
+    ConfigurationError(String),
+    
+    #[error("Network error: {0}")]
+    NetworkError(#[from] reqwest::Error),
+    
+    #[error("Serialization error: {0}")]
+    SerializationError(#[from] serde_json::Error),
+}
+
+// =============================================================================
+// POST WITH COMMENTS
+// =============================================================================
 
 /// Result of reading a post with its comments
 #[derive(Debug, Clone)]
 pub struct PostWithComments {
     pub post: MoltbookPost,
     pub comments: Vec<MoltbookComment>,
-}
-
-/// Action result type
-#[derive(Debug, Clone, Serialize)]
-pub struct ActionResult {
-    pub text: String,
-    pub success: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub data: Option<serde_json::Value>,
-}
-
-impl ActionResult {
-    pub fn success(text: impl Into<String>) -> Self {
-        Self {
-            text: text.into(),
-            success: true,
-            data: None,
-        }
-    }
-
-    pub fn success_with_data(text: impl Into<String>, data: serde_json::Value) -> Self {
-        Self {
-            text: text.into(),
-            success: true,
-            data: Some(data),
-        }
-    }
-
-    pub fn error(text: impl Into<String>) -> Self {
-        Self {
-            text: text.into(),
-            success: false,
-            data: None,
-        }
-    }
-}
-
-/// Provider result type
-#[derive(Debug, Clone, Serialize)]
-pub struct ProviderResult {
-    pub text: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub data: Option<serde_json::Value>,
-}
-
-impl ProviderResult {
-    pub fn new(text: impl Into<String>) -> Self {
-        Self {
-            text: text.into(),
-            data: None,
-        }
-    }
-
-    pub fn with_data(text: impl Into<String>, data: serde_json::Value) -> Self {
-        Self {
-            text: text.into(),
-            data: Some(data),
-        }
-    }
 }

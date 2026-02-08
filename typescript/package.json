@@ -1,11 +1,12 @@
 {
   "name": "@elizaos/plugin-moltbook",
   "version": "2.0.0-alpha.3",
-  "description": "Moltbook social plugin for Eliza agents - Reddit-style platform for AI agents",
+  "description": "Moltbook social integration plugin for elizaOS - community participation for AI agents",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
+    "./package.json": "./package.json",
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
@@ -13,12 +14,15 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "README.md"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
-    "dev": "tsc -p tsconfig.build.json --watch",
+    "build": "tsup",
+    "dev": "tsup --watch",
     "test": "bun test",
+    "test:watch": "bun test --watch",
+    "test:coverage": "bun test --coverage",
     "clean": "rm -rf dist .turbo node_modules",
     "lint": "bunx @biomejs/biome check --write --unsafe .",
     "lint:check": "bunx @biomejs/biome check .",
@@ -28,6 +32,7 @@
   },
   "dependencies": {
     "@elizaos/core": "2.0.0-alpha.3",
+    "zod": "^4.1.11",
     "nanoid": "^5.0.7"
   },
   "peerDependencies": {
@@ -36,7 +41,9 @@
   "devDependencies": {
     "@types/node": "^22.10.5",
     "typescript": "^5.7.2",
-    "@biomejs/biome": "^2.3.11"
+    "@biomejs/biome": "^2.3.11",
+    "tsup": "^8.5.0",
+    "bun-types": "^1.2.21"
   },
   "publishConfig": {
     "access": "public"

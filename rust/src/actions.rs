@@ -1,351 +1,296 @@
-#![allow(missing_docs)]
+// Moltbook Actions
+//
+// Rust port of TypeScript actions from plugin-moltbook/typescript/src/actions/
 
-use serde_json::{json, Value};
+use async_trait::async_trait;
+use serde_json::json;
+use std::any::Any;
+use std::sync::Arc;
 
-use crate::constants::DEFAULT_SUBMOLT;
-use crate::error::{MoltbookError, Result};
-use crate::service::MoltbookService;
 use crate::types::*;
+use crate::constants::*;
 
-pub type ActionHandler = fn(
-    &MoltbookService,
-    Value,
-) -> std::pin::Pin<
-    Box<dyn std::future::Future<Output = Result<ActionResult>> + Send + '_>,
->;
+// NOTE: This is a streamlined Rust port. Full ElizaOS action trait integration
+// would require complete Rust runtime bindings which are out of scope for this port.
+// These functions demonstrate the core action logic and can be wrapped in proper
+// ElizaOS action structs when the Rust runtime is fully implemented.
 
-/// MOLTBOOK_POST - Create a post on Moltbook
-pub async fn moltbook_post(service: &MoltbookService, params: Value) -> Result<ActionResult> {
-    let submolt = params
-        .get("submolt")
-        .and_then(|s| s.as_str())
-        .unwrap_or(DEFAULT_SUBMOLT);
+// =============================================================================
+// POST ACTION
+// =============================================================================
 
-    let title = params
-        .get("title")
-        .and_then(|t| t.as_str())
-        .ok_or_else(|| MoltbookError::InvalidInput("Title is required".to_string()))?;
-
-    let content = params
-        .get("content")
-        .and_then(|c| c.as_str())
-        .ok_or_else(|| MoltbookError::InvalidInput("Content is required".to_string()))?;
-
-    let post_id = service.moltbook_post(submolt, title, content).await?;
-
-    Ok(ActionResult::success_with_data(
-        format!("Posted to Moltbook! Post ID: {} in r/{}", post_id, submolt),
-        json!({
-            "postId": post_id,
-            "submolt": submolt,
-            "title": title,
-        }),
-    ))
+/// Check if message indicates desire to post
+pub fn should_post(message: &str) -> bool {
+    let msg_lower = message.to_lowercase();
+    msg_lower.contains("post") || 
+    msg_lower.contains("share") || 
+    msg_lower.contains("molty")
 }
 
-/// MOLTBOOK_BROWSE - Browse posts on Moltbook
-pub async fn moltbook_browse(service: &MoltbookService, params: Value) -> Result<ActionResult> {
-    let submolt = params.get("submolt").and_then(|s| s.as_str());
-    let sort = params
-        .get("sort")
-        .and_then(|s| s.as_str())
-        .unwrap_or("hot");
+/// Validate post action
+pub fn validate_post(message: &str) -> bool {
+    should_post(message)
+}
 
-    let result = service.moltbook_browse(submolt, sort).await;
+// =============================================================================
+// COMMENT ACTION
+// =============================================================================
 
-    match result {
-        MoltbookResult::Failure(error) => Ok(ActionResult::error(format!(
-            "Failed to browse Moltbook: {}",
-            error
-        ))),
-        MoltbookResult::Success(posts) => {
-            if posts.is_empty() {
-                return Ok(ActionResult::success_with_data(
-                    "No posts found on Moltbook.",
-                    json!({ "posts": [] }),
-                ));
-            }
+/// Check if message indicates desire to comment
+pub fn should_comment(message: &str) -> bool {
+    let msg_lower = message.to_lowercase();
+    msg_lower.contains("comment") || 
+    msg_lower.contains("reply") || 
+    msg_lower.contains("respond")
+}
 
-            let formatted_posts: Vec<String> = posts
-                .iter()
-                .take(8)
-                .map(|p| {
-                    let submolt_name = p
-                        .submolt
-                        .as_ref()
-                        .map(|s| s.name.as_str())
-                        .unwrap_or("general");
-                    let author_name = p
-                        .author
-                        .as_ref()
-                        .map(|a| a.name.as_str())
-                        .unwrap_or("anon");
-                    let upvotes = p.upvotes.unwrap_or(0);
-                    let comments = p.comment_count.unwrap_or(0);
+/// Validate comment action
+pub fn validate_comment(message: &str) -> bool {
+    should_comment(message)
+}
 
-                    format!(
-                        "[id:{}] [{}] {} by {} ({} votes, {} comments)",
-                        p.id, submolt_name, p.title, author_name, upvotes, comments
-                    )
-                })
-                .collect();
+// =============================================================================
+// FOLLOW ACTION
+// =============================================================================
 
-            Ok(ActionResult::success_with_data(
-                format!(
-                    "Moltbook posts ({}):\n\n{}",
-                    sort,
-                    formatted_posts.join("\n")
-                ),
-                json!({ "posts": posts }),
-            ))
+/// Check if message indicates desire to follow/unfollow
+pub fn should_follow(message: &str) -> bool {
+    let msg_lower = message.to_lowercase();
+    msg_lower.contains("follow") || msg_lower.contains("unfollow")
+}
+
+/// Parse follow intent from message
+pub struct FollowIntent {
+    pub username: String,
+    pub unfollow: bool,
+}
+
+pub fn parse_follow_intent(message: &str) -> Option<FollowIntent> {
+    let msg_lower = message.to_lowercase();
+    let unfollow = msg_lower.contains("unfollow");
+    
+    // Extract username (simple heuristic: word after "follow" or last word)
+    let words: Vec<&str> = message.split_whitespace().collect();
+    
+    if let Some(follow_idx) = words.iter().position(|&w| {
+        w.to_lowercase().contains("follow")
+    }) {
+        if follow_idx + 1 < words.len() {
+            let username = words[follow_idx + 1].trim_matches(|c: char| !c.is_alphanumeric());
+            return Some(FollowIntent {
+                username: username.to_string(),
+                unfollow,
+            });
         }
     }
-}
-
-/// MOLTBOOK_COMMENT - Comment on a Moltbook post
-pub async fn moltbook_comment(service: &MoltbookService, params: Value) -> Result<ActionResult> {
-    let post_id = params
-        .get("postId")
-        .and_then(|p| p.as_str())
-        .ok_or_else(|| MoltbookError::InvalidInput("Post ID is required".to_string()))?;
-
-    let content = params
-        .get("content")
-        .and_then(|c| c.as_str())
-        .ok_or_else(|| MoltbookError::InvalidInput("Comment content is required".to_string()))?;
-
-    let parent_id = params.get("parentId").and_then(|p| p.as_str());
-
-    let comment_id = if let Some(parent) = parent_id {
-        // Reply to a comment
-        service.moltbook_reply(post_id, parent, content).await?
-    } else {
-        // Comment on the post
-        service.moltbook_comment(post_id, content).await?
-    };
-
-    Ok(ActionResult::success_with_data(
-        format!("Comment posted successfully! Comment ID: {}", comment_id),
-        json!({
-            "commentId": comment_id,
-            "postId": post_id,
-            "parentId": parent_id,
-        }),
-    ))
-}
-
-/// MOLTBOOK_READ - Read a specific Moltbook post with comments
-pub async fn moltbook_read(service: &MoltbookService, params: Value) -> Result<ActionResult> {
-    let post_id = params
-        .get("postId")
-        .and_then(|p| p.as_str())
-        .ok_or_else(|| MoltbookError::InvalidInput("Post ID is required".to_string()))?;
-
-    let result = service.moltbook_read_post(post_id).await?;
-    let post = &result.post;
-    let comments = &result.comments;
-
-    let formatted_comments = if comments.is_empty() {
-        "  (no comments yet)".to_string()
-    } else {
-        comments
-            .iter()
-            .take(10)
-            .map(|c| {
-                let author_name = c
-                    .author
-                    .as_ref()
-                    .map(|a| a.name.as_str())
-                    .unwrap_or("anon");
-                let content = if c.content.len() > 200 {
-                    format!("{}...", &c.content[..200])
-                } else {
-                    c.content.clone()
-                };
-                format!("  - {}: {}", author_name, content)
-            })
-            .collect::<Vec<_>>()
-            .join("\n")
-    };
-
-    let post_content = post
-        .content
-        .as_deref()
-        .or(post.body.as_deref())
-        .unwrap_or("(no content)");
-
-    let truncated_content = if post_content.len() > 500 {
-        format!("{}...", &post_content[..500])
-    } else {
-        post_content.to_string()
-    };
-
-    let submolt_name = post
-        .submolt
-        .as_ref()
-        .map(|s| s.name.as_str())
-        .unwrap_or("general");
-    let author_name = post
-        .author
-        .as_ref()
-        .map(|a| a.name.as_str())
-        .unwrap_or("anon");
-    let upvotes = post.upvotes.unwrap_or(0);
-    let comment_count = post.comment_count.unwrap_or(0);
-
-    let formatted_post = format!(
-        "**{}**\nby {} in r/{}\n{} upvotes | {} comments\n\n{}\n\nComments:\n{}",
-        post.title,
-        author_name,
-        submolt_name,
-        upvotes,
-        comment_count,
-        truncated_content,
-        formatted_comments
-    );
-
-    Ok(ActionResult::success_with_data(
-        formatted_post,
-        json!({
-            "post": post,
-            "comments": comments,
-        }),
-    ))
-}
-
-/// MOLTBOOK_SUBMOLTS - List or examine submolts
-pub async fn moltbook_submolts(service: &MoltbookService, params: Value) -> Result<ActionResult> {
-    let submolt_name = params.get("submolt").and_then(|s| s.as_str());
-
-    // If a specific submolt is requested, get its details
-    if let Some(name) = submolt_name {
-        let submolt_result = service.moltbook_get_submolt(name).await;
-
-        match submolt_result {
-            MoltbookResult::Failure(error) => {
-                return Ok(ActionResult::error(format!(
-                    "Failed to get submolt: {}",
-                    error
-                )));
-            }
-            MoltbookResult::Success(None) => {
-                return Ok(ActionResult::error(format!(
-                    "Submolt \"m/{}\" not found.",
-                    name
-                )));
-            }
-            MoltbookResult::Success(Some(submolt)) => {
-                // Also get recent posts from this submolt
-                let posts_result = service.moltbook_browse(Some(name), "hot").await;
-                let posts = match &posts_result {
-                    MoltbookResult::Success(p) => p.clone(),
-                    MoltbookResult::Failure(_) => vec![],
-                };
-
-                let recent_posts = if posts.is_empty() {
-                    "  (no recent posts)".to_string()
-                } else {
-                    posts
-                        .iter()
-                        .take(5)
-                        .map(|p| {
-                            let author_name = p
-                                .author
-                                .as_ref()
-                                .map(|a| a.name.as_str())
-                                .unwrap_or("anon");
-                            let upvotes = p.upvotes.unwrap_or(0);
-                            format!("  - {} by {} ({} votes)", p.title, author_name, upvotes)
-                        })
-                        .collect::<Vec<_>>()
-                        .join("\n")
-                };
-
-                let description = submolt
-                    .description
-                    .as_deref()
-                    .unwrap_or("(no description)");
-
-                let subscriber_count = submolt
-                    .subscriber_count
-                    .map(|c| c.to_string())
-                    .unwrap_or_else(|| "unknown".to_string());
-
-                let post_count = submolt
-                    .post_count
-                    .map(|c| c.to_string())
-                    .unwrap_or_else(|| "unknown".to_string());
-
-                let created_info = submolt
-                    .created_at
-                    .as_ref()
-                    .map(|d| format!("\nCreated: {}", d))
-                    .unwrap_or_default();
-
-                let submolt_info = format!(
-                    "**m/{}**\n{}\n\nSubscribers: {}\nPosts: {}{}\n\nRecent posts:\n{}",
-                    submolt.name,
-                    description,
-                    subscriber_count,
-                    post_count,
-                    created_info,
-                    recent_posts
-                );
-
-                return Ok(ActionResult::success_with_data(
-                    submolt_info,
-                    json!({
-                        "submolt": submolt,
-                        "posts": posts,
-                    }),
-                ));
+    
+    // Fallback: check for @username pattern
+    for word in &words {
+        if word.starts_with('@') {
+            let username = word[1..].trim_matches(|c: char| !c.is_alphanumeric());
+            if !username.is_empty() {
+                return Some(FollowIntent {
+                    username: username.to_string(),
+                    unfollow,
+                });
             }
         }
     }
+    
+    None
+}
 
-    // Otherwise, list all submolts
-    let submolts_result = service.moltbook_list_submolts("popular").await;
+/// Validate follow action
+pub fn validate_follow(message: &str) -> bool {
+    should_follow(message) && parse_follow_intent(message).is_some()
+}
 
-    match submolts_result {
-        MoltbookResult::Failure(error) => Ok(ActionResult::error(format!(
-            "Failed to get submolts: {}",
-            error
-        ))),
-        MoltbookResult::Success(submolts) => {
-            if submolts.is_empty() {
-                return Ok(ActionResult::success_with_data(
-                    "No submolts found on Moltbook.",
-                    json!({ "submolts": [] }),
-                ));
+// =============================================================================
+// VOTE ACTION
+// =============================================================================
+
+/// Check if message indicates desire to vote
+pub fn should_vote(message: &str) -> bool {
+    let msg_lower = message.to_lowercase();
+    msg_lower.contains("upvote") || 
+    msg_lower.contains("downvote") || 
+    (msg_lower.contains("vote") && (msg_lower.contains("up") || msg_lower.contains("down")))
+}
+
+/// Parse vote intent from message
+pub struct VoteIntent {
+    pub target_id: String,
+    pub vote_type: String, // "up" or "down"
+    pub is_comment: bool,
+}
+
+pub fn parse_vote_intent(message: &str) -> Option<VoteIntent> {
+    let msg_lower = message.to_lowercase();
+    let vote_type = if msg_lower.contains("downvote") || 
+                       (msg_lower.contains("vote") && msg_lower.contains("down")) {
+        "down"
+    } else {
+        "up"
+    };
+    
+    let is_comment = msg_lower.contains("comment");
+    
+    // Extract ID - look for patterns like "post 123" or "comment abc"
+    let words: Vec<&str> = message.split_whitespace().collect();
+    
+    for (i, word) in words.iter().enumerate() {
+        let w_lower = word.to_lowercase();
+        if (w_lower == "post" || w_lower == "comment") && i + 1 < words.len() {
+            let id = words[i + 1].trim_matches(|c: char| !c.is_alphanumeric());
+            if !id.is_empty() {
+                return Some(VoteIntent {
+                    target_id: id.to_string(),
+                    vote_type: vote_type.to_string(),
+                    is_comment: w_lower == "comment",
+                });
             }
-
-            let formatted_submolts: Vec<String> = submolts
-                .iter()
-                .take(15)
-                .map(|s| {
-                    let desc = s
-                        .description
-                        .as_deref()
-                        .map(|d| {
-                            if d.len() > 60 {
-                                format!("{}...", &d[..60])
-                            } else {
-                                d.to_string()
-                            }
-                        })
-                        .unwrap_or_else(|| "(no description)".to_string());
-                    let members = s.subscriber_count.unwrap_or(0);
-                    format!("- m/{} - {} ({} members)", s.name, desc, members)
-                })
-                .collect();
-
-            Ok(ActionResult::success_with_data(
-                format!(
-                    "Available submolts on Moltbook:\n\n{}\n\nUse \"examine m/[name]\" to see details about a specific submolt.",
-                    formatted_submolts.join("\n")
-                ),
-                json!({ "submolts": submolts }),
-            ))
         }
     }
+    
+    None
 }
+
+/// Validate vote action
+pub fn validate_vote(message: &str) -> bool {
+    should_vote(message) && parse_vote_intent(message).is_some()
+}
+
+// =============================================================================
+// SEARCH ACTION
+// =============================================================================
+
+/// Check if message indicates desire to search
+pub fn should_search(message: &str) -> bool {
+    let msg_lower = message.to_lowercase();
+    msg_lower.contains("search") || 
+    msg_lower.contains("find") || 
+    msg_lower.contains("look for")
+}
+
+/// Parse search intent from message
+pub struct SearchIntent {
+    pub query: String,
+    pub search_type: String, // "post", "comment", or "all"
+}
+
+pub fn parse_search_intent(message: &str) -> Option<SearchIntent> {
+    let msg_lower = message.to_lowercase();
+    
+    // Determine search type
+    let search_type = if msg_lower.contains("comment") {
+        "comment"
+    } else if msg_lower.contains("post") {
+        "post"
+    } else {
+        "all"
+    };
+    
+    // Extract query - everything after "search for", "find", etc.
+    let patterns = ["search for", "find", "look for", "search"];
+    
+    for pattern in &patterns {
+        if let Some(idx) = msg_lower.find(pattern) {
+            let query_start = idx + pattern.len();
+            let query = message[query_start..]
+                .trim()
+                .trim_matches(|c: char| c == '"' || c == '\'')
+                .to_string();
+            
+            if !query.is_empty() {
+                return Some(SearchIntent {
+                    query,
+                    search_type: search_type.to_string(),
+                });
+            }
+        }
+    }
+    
+    None
+}
+
+/// Validate search action
+pub fn validate_search(message: &str) -> bool {
+    should_search(message) && parse_search_intent(message).is_some()
+}
+
+// =============================================================================
+// ACTION METADATA
+// =============================================================================
+
+pub struct ActionMetadata {
+    pub name: &'static str,
+    pub description: &'static str,
+    pub examples: Vec<Vec<(&'static str, &'static str)>>,
+}
+
+pub const POST_ACTION: ActionMetadata = ActionMetadata {
+    name: "MOLTBOOK_POST",
+    description: "Create a new post on Moltbook",
+    examples: vec![
+        vec![
+            ("user", "Post about AI on Moltbook"),
+            ("assistant", "I'll create a post about AI..."),
+        ],
+        vec![
+            ("user", "Share this thought on Moltbook: ..."),
+            ("assistant", "Posting to Moltbook..."),
+        ],
+    ],
+};
+
+pub const COMMENT_ACTION: ActionMetadata = ActionMetadata {
+    name: "MOLTBOOK_COMMENT",
+    description: "Comment on a Moltbook post",
+    examples: vec![
+        vec![
+            ("user", "Comment on post 123"),
+            ("assistant", "I'll add a thoughtful comment..."),
+        ],
+    ],
+};
+
+pub const FOLLOW_ACTION: ActionMetadata = ActionMetadata {
+    name: "MOLTBOOK_FOLLOW",
+    description: "Follow or unfollow a Moltbook user",
+    examples: vec![
+        vec![
+            ("user", "Follow @alice on Moltbook"),
+            ("assistant", "Following alice..."),
+        ],
+        vec![
+            ("user", "Unfollow bob"),
+            ("assistant", "Unfollowing bob..."),
+        ],
+    ],
+};
+
+pub const VOTE_ACTION: ActionMetadata = ActionMetadata {
+    name: "MOLTBOOK_VOTE",
+    description: "Vote on Moltbook posts or comments",
+    examples: vec![
+        vec![
+            ("user", "Upvote post 123"),
+            ("assistant", "Upvoting post..."),
+        ],
+        vec![
+            ("user", "Downvote comment abc"),
+            ("assistant", "Downvoting comment..."),
+        ],
+    ],
+};
+
+pub const SEARCH_ACTION: ActionMetadata = ActionMetadata {
+    name: "MOLTBOOK_SEARCH",
+    description: "Search Moltbook posts and comments",
+    examples: vec![
+        vec![
+            ("user", "Search Moltbook for AI agents"),
+            ("assistant", "Searching for 'AI agents'..."),
+        ],
+    ],
+};
