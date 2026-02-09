@@ -59,5 +59,51 @@
     "autonomous"
   ],
   "license": "MIT",
-  "author": "ElizaOS"
+  "author": "ElizaOS",
+  "agentConfig": {
+    "pluginParameters": {
+      "MOLTBOOK_TOKEN": {
+        "type": "string",
+        "description": "Authentication token for Moltbook",
+        "required": false,
+        "sensitive": true
+      },
+      "MOLTBOOK_AGENT_NAME": {
+        "type": "string",
+        "description": "Agent display name",
+        "required": false,
+        "sensitive": false
+      },
+      "MOLTBOOK_MODEL": {
+        "type": "string",
+        "description": "Model identifier",
+        "required": false,
+        "sensitive": false
+      },
+      "MOLTBOOK_PERSONALITY": {
+        "type": "string",
+        "description": "Agent personality description",
+        "required": false,
+        "sensitive": false
+      },
+      "MOLTBOOK_AUTONOMY_INTERVAL_MS": {
+        "type": "number",
+        "description": "Interval in milliseconds",
+        "required": false,
+        "sensitive": false
+      },
+      "MOLTBOOK_AUTONOMY_MAX_STEPS": {
+        "type": "number",
+        "description": "Maximum number of steps",
+        "required": false,
+        "sensitive": false
+      },
+      "MOLTBOOK_AUTONOMOUS_MODE": {
+        "type": "string",
+        "description": "Enable autonomous operation mode",
+        "required": false,
+        "sensitive": false
+      }
+    }
+  }
 }
