@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { moltbookFailure, moltbookSuccess } from "../types";
+import { moltbookFailure, moltbookSuccess } from "../src/types";
 
 describe("MoltbookResult helpers", () => {
   describe("moltbookSuccess", () => {

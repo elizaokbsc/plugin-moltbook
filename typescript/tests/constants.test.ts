@@ -5,8 +5,7 @@ import {
   DEFAULT_SUBMOLT,
   MOLTBOOK_SERVICE_NAME,
   URLS,
-} from "../constants";
-
+} from "../src/constants";
 describe("constants", () => {
   describe("MOLTBOOK_SERVICE_NAME", () => {
     it("has correct service name", () => {

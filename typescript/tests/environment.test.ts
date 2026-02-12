@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { validateMoltbookSettings } from "../environment";
-import type { MoltbookSettings } from "../types";
+import { validateMoltbookSettings } from "../src/environment";
+import type { MoltbookSettings } from "../src/types";
 
 describe("validateMoltbookSettings", () => {
   const validSettings: MoltbookSettings = {
