@@ -300,6 +300,17 @@ export class MoltbookService extends Service {
     // Stop autonomy loop if running
     this.stopAutonomyLoop();
 
+    // Wait for any in-flight startup work before fully shutting down.
+    if (this.initializationPromise) {
+      try {
+        await this.initializationPromise;
+      } catch {
+        // Initialization errors are already logged in initializeInBackground.
+      } finally {
+        this.initializationPromise = null;
+      }
+    }
+
     this.isRunning = false;
     this.runtime.logger.info("Moltbook service stopped");
   }
