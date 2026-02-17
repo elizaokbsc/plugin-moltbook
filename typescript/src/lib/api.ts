@@ -13,33 +13,32 @@
  * or when no runtime logger is available.
  */
 
-import type { UUID } from '@elizaos/core';
-import { logger as coreLogger } from '@elizaos/core';
-import type {
-  MoltbookPost,
-  MoltbookComment,
-  MoltbookProfile,
-  MoltbookFeed,
-  MoltbookSearchResults,
-  MoltbookSubmolt,
-  MoltbookCredentials,
-} from '../types';
+import type { UUID } from "@elizaos/core";
+import { logger as coreLogger } from "@elizaos/core";
 import {
-  MOLTBOOK_API_URL,
   ENDPOINTS,
-  HTTP_TIMEOUT_MS,
   HTTP_MAX_RETRIES,
   HTTP_RETRY_BASE_DELAY_MS,
-} from '../constants';
+  HTTP_TIMEOUT_MS,
+  MOLTBOOK_API_URL,
+} from "../constants";
+import type {
+  MoltbookComment,
+  MoltbookFeed,
+  MoltbookPost,
+  MoltbookProfile,
+  MoltbookSearchResults,
+  MoltbookSubmolt,
+} from "../types";
 import {
+  canComment,
   canMakeRequest,
+  canPost,
+  recordComment,
+  recordPost,
   recordRequest,
   setRetryAfter,
-  canPost,
-  recordPost,
-  canComment,
-  recordComment,
-} from './rateLimiter';
+} from "./rateLimiter";
 
 // =============================================================================
 // TYPES
@@ -68,7 +67,7 @@ interface ApiResponse<T> {
 }
 
 interface RequestOptions {
-  method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+  method?: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
   body?: unknown;
   headers?: Record<string, string>;
   skipRateLimit?: boolean;
@@ -96,30 +95,33 @@ async function request<T>(
   apiKey: string | undefined,
   options: RequestOptions = {}
 ): Promise<ApiResponse<T>> {
-  const { method = 'GET', body, headers = {}, skipRateLimit = false, logger = coreLogger } = options;
+  const {
+    method = "GET",
+    body,
+    headers = {},
+    skipRateLimit = false,
+    logger = coreLogger,
+  } = options;
 
   // Check rate limits (unless skipped for auth endpoints)
   if (!skipRateLimit && !canMakeRequest(agentId)) {
-    logger.warn(
-      { agentId, endpoint, method },
-      'Moltbook API: Rate limited locally'
-    );
+    logger.warn({ agentId, endpoint, method }, "Moltbook API: Rate limited locally");
     return {
       success: false,
-      error: 'Rate limited - too many requests',
+      error: "Rate limited - too many requests",
       status: 429,
     };
   }
 
   const url = `${MOLTBOOK_API_URL}${endpoint}`;
   const requestHeaders: Record<string, string> = {
-    'Content-Type': 'application/json',
-    'User-Agent': 'elizaOS-moltbook-plugin/1.0',
+    "Content-Type": "application/json",
+    "User-Agent": "elizaOS-moltbook-plugin/1.0",
     ...headers,
   };
 
   if (apiKey) {
-    requestHeaders['Authorization'] = `Bearer ${apiKey}`;
+    requestHeaders["Authorization"] = `Bearer ${apiKey}`;
   }
 
   // Debug: Log request details
@@ -131,7 +133,7 @@ async function request<T>(
       hasAuth: !!apiKey,
       endpoint,
     },
-    'Moltbook API: Making request'
+    "Moltbook API: Making request"
   );
 
   let lastError: Error | undefined;
@@ -143,7 +145,7 @@ async function request<T>(
 
       logger.debug(
         { url, method, attempt, body: body ? JSON.stringify(body).slice(0, 200) : null },
-        'Moltbook API: Fetching'
+        "Moltbook API: Fetching"
       );
 
       const response = await fetch(url, {
@@ -164,7 +166,7 @@ async function request<T>(
           statusText: response.statusText,
           headers: Object.fromEntries(response.headers.entries()),
         },
-        'Moltbook API: Response received'
+        "Moltbook API: Response received"
       );
 
       // Record the request for rate limiting
@@ -174,24 +176,21 @@ async function request<T>(
 
       // Handle rate limit response
       if (response.status === 429) {
-        const retryAfter = response.headers.get('retry-after');
-        logger.warn(
-          { url, retryAfter },
-          'Moltbook API: Rate limited by server'
-        );
+        const retryAfter = response.headers.get("retry-after");
+        logger.warn({ url, retryAfter }, "Moltbook API: Rate limited by server");
         if (retryAfter) {
           setRetryAfter(agentId, parseInt(retryAfter, 10));
         }
         return {
           success: false,
-          error: 'Rate limited by server',
+          error: "Rate limited by server",
           status: 429,
         };
       }
 
       // Handle other error statuses
       if (!response.ok) {
-        const errorBody = await response.text().catch(() => 'Unknown error');
+        const errorBody = await response.text().catch(() => "Unknown error");
         logger.error(
           {
             url,
@@ -200,7 +199,7 @@ async function request<T>(
             statusText: response.statusText,
             errorBody: errorBody.slice(0, 500),
           },
-          'Moltbook API: Request failed'
+          "Moltbook API: Request failed"
         );
         return {
           success: false,
@@ -211,10 +210,7 @@ async function request<T>(
 
       // Parse successful response
       const responseText = await response.text();
-      logger.debug(
-        { url, responseLength: responseText.length },
-        'Moltbook API: Parsing response'
-      );
+      logger.debug({ url, responseLength: responseText.length }, "Moltbook API: Parsing response");
 
       let data: T;
       try {
@@ -222,7 +218,7 @@ async function request<T>(
       } catch (parseError) {
         logger.error(
           { url, responseText: responseText.slice(0, 500), parseError },
-          'Moltbook API: Failed to parse JSON response'
+          "Moltbook API: Failed to parse JSON response"
         );
         return {
           success: false,
@@ -231,10 +227,7 @@ async function request<T>(
         };
       }
 
-      logger.debug(
-        { url, method, status: response.status },
-        'Moltbook API: Request successful'
-      );
+      logger.debug({ url, method, status: response.status }, "Moltbook API: Request successful");
 
       return {
         success: true,
@@ -252,39 +245,33 @@ async function request<T>(
           errorName: lastError.name,
           errorMessage: lastError.message,
         },
-        'Moltbook API: Request exception'
+        "Moltbook API: Request exception"
       );
 
       // Don't retry on abort (timeout)
-      if (lastError.name === 'AbortError') {
-        logger.warn({ url }, 'Moltbook API: Request timeout');
+      if (lastError.name === "AbortError") {
+        logger.warn({ url }, "Moltbook API: Request timeout");
         return {
           success: false,
-          error: 'Request timeout',
+          error: "Request timeout",
           status: 408,
         };
       }
 
       // Exponential backoff for retries
       if (attempt < HTTP_MAX_RETRIES - 1) {
-        const delay = HTTP_RETRY_BASE_DELAY_MS * Math.pow(2, attempt);
-        logger.debug(
-          { attempt, delay, error: lastError.message },
-          'Moltbook API: Retrying'
-        );
+        const delay = HTTP_RETRY_BASE_DELAY_MS * 2 ** attempt;
+        logger.debug({ attempt, delay, error: lastError.message }, "Moltbook API: Retrying");
         await sleep(delay);
       }
     }
   }
 
-  logger.error(
-    { url, method, error: lastError?.message },
-    'Moltbook API: All retries exhausted'
-  );
+  logger.error({ url, method, error: lastError?.message }, "Moltbook API: All retries exhausted");
 
   return {
     success: false,
-    error: lastError?.message || 'Request failed after retries',
+    error: lastError?.message || "Request failed after retries",
     status: 0,
   };
 }
@@ -317,9 +304,7 @@ export async function register(
   name: string,
   description?: string,
   logger: Logger = coreLogger
-): Promise<
-  ApiResponse<{ apiKey: string; claimUrl: string; verificationCode: string }>
-> {
+): Promise<ApiResponse<{ apiKey: string; claimUrl: string; verificationCode: string }>> {
   logger.info(
     {
       name,
@@ -328,20 +313,15 @@ export async function register(
       endpoint: ENDPOINTS.REGISTER,
       fullUrl: `${MOLTBOOK_API_URL}${ENDPOINTS.REGISTER}`,
     },
-    'Moltbook: Attempting to register new agent'
+    "Moltbook: Attempting to register new agent"
   );
 
-  const result = await request<RegisterResponse>(
-    agentId,
-    ENDPOINTS.REGISTER,
-    undefined,
-    {
-      method: 'POST',
-      body: { name, description: description || `elizaOS agent: ${name}` },
-      skipRateLimit: true,
-      logger,
-    }
-  );
+  const result = await request<RegisterResponse>(agentId, ENDPOINTS.REGISTER, undefined, {
+    method: "POST",
+    body: { name, description: description || `elizaOS agent: ${name}` },
+    skipRateLimit: true,
+    logger,
+  });
 
   if (result.success && result.data?.agent) {
     logger.info(
@@ -350,7 +330,7 @@ export async function register(
         claimUrl: result.data.agent.claim_url,
         verificationCode: result.data.agent.verification_code,
       },
-      'Moltbook: Registration successful - SAVE YOUR API KEY!'
+      "Moltbook: Registration successful - SAVE YOUR API KEY!"
     );
 
     return {
@@ -371,7 +351,7 @@ export async function register(
         fullUrl: `${MOLTBOOK_API_URL}${ENDPOINTS.REGISTER}`,
         responseData: result.data,
       },
-      'Moltbook: Registration failed'
+      "Moltbook: Registration failed"
     );
 
     return {
@@ -409,10 +389,10 @@ export async function validateKey(
   apiKey: string,
   logger: Logger = coreLogger
 ): Promise<ApiResponse<{ valid: boolean; name: string; isClaimed: boolean }>> {
-  logger.debug({ agentId }, 'Moltbook: Validating API key via /agents/me');
+  logger.debug({ agentId }, "Moltbook: Validating API key via /agents/me");
 
   const result = await request<AgentMeResponse>(agentId, ENDPOINTS.ME, apiKey, {
-    method: 'GET',
+    method: "GET",
     skipRateLimit: true,
     logger,
   });
@@ -433,13 +413,13 @@ export async function validateKey(
   // Special case: 401 "not yet claimed" means the API key IS valid,
   // but the agent hasn't been claimed by a human yet
   // WHY? Moltbook returns 401 for unclaimed agents, not 200 with is_claimed=false
-  if (result.status === 401 && result.error?.includes('not yet claimed')) {
-    logger.debug('Moltbook: API key valid but agent not yet claimed');
+  if (result.status === 401 && result.error?.includes("not yet claimed")) {
+    logger.debug("Moltbook: API key valid but agent not yet claimed");
     return {
       success: true, // Key IS valid!
       data: {
         valid: true,
-        name: '', // We don't have the name from this response
+        name: "", // We don't have the name from this response
         isClaimed: false, // Explicitly unclaimed
       },
       status: result.status,
@@ -449,7 +429,7 @@ export async function validateKey(
   // Actual failure - invalid key or other error
   return {
     success: false,
-    data: { valid: false, name: '', isClaimed: false },
+    data: { valid: false, name: "", isClaimed: false },
     error: result.error,
     status: result.status,
   };
@@ -459,7 +439,7 @@ export async function validateKey(
  * Status response from /agents/status
  */
 interface AgentStatusResponse {
-  status: 'pending_claim' | 'claimed';
+  status: "pending_claim" | "claimed";
 }
 
 /**
@@ -471,24 +451,19 @@ export async function checkClaimStatus(
   apiKey: string,
   logger: Logger = coreLogger
 ): Promise<ApiResponse<{ claimed: boolean; status: string }>> {
-  logger.debug({ agentId }, 'Moltbook: Checking claim status');
+  logger.debug({ agentId }, "Moltbook: Checking claim status");
 
-  const result = await request<AgentStatusResponse>(
-    agentId,
-    ENDPOINTS.STATUS,
-    apiKey,
-    {
-      method: 'GET',
-      skipRateLimit: true,
-      logger,
-    }
-  );
+  const result = await request<AgentStatusResponse>(agentId, ENDPOINTS.STATUS, apiKey, {
+    method: "GET",
+    skipRateLimit: true,
+    logger,
+  });
 
   if (result.success && result.data) {
     return {
       success: true,
       data: {
-        claimed: result.data.status === 'claimed',
+        claimed: result.data.status === "claimed",
         status: result.data.status,
       },
       status: result.status,
@@ -506,7 +481,7 @@ export async function checkClaimStatus(
 // FEED API
 // =============================================================================
 
-type SortOption = 'hot' | 'new' | 'top' | 'rising';
+type SortOption = "hot" | "new" | "top" | "rising";
 
 /**
  * Get the personalized feed (from subscribed submolts + followed moltys)
@@ -519,8 +494,8 @@ export async function getFeed(
 ): Promise<ApiResponse<MoltbookFeed>> {
   const { sort, limit, logger = coreLogger } = options;
   const params = new URLSearchParams();
-  if (sort) params.set('sort', sort);
-  if (limit) params.set('limit', String(limit));
+  if (sort) params.set("sort", sort);
+  if (limit) params.set("limit", String(limit));
 
   const query = params.toString();
   const endpoint = query ? `${ENDPOINTS.FEED}?${query}` : ENDPOINTS.FEED;
@@ -539,9 +514,9 @@ export async function getPosts(
 ): Promise<ApiResponse<MoltbookFeed>> {
   const { sort, submolt, limit, logger = coreLogger } = options;
   const params = new URLSearchParams();
-  if (sort) params.set('sort', sort);
-  if (submolt) params.set('submolt', submolt);
-  if (limit) params.set('limit', String(limit));
+  if (sort) params.set("sort", sort);
+  if (submolt) params.set("submolt", submolt);
+  if (limit) params.set("limit", String(limit));
 
   const query = params.toString();
   const endpoint = query ? `${ENDPOINTS.POSTS}?${query}` : ENDPOINTS.POSTS;
@@ -561,8 +536,8 @@ export async function getSubmoltFeed(
 ): Promise<ApiResponse<MoltbookFeed>> {
   const { sort, limit, logger = coreLogger } = options;
   const params = new URLSearchParams();
-  if (sort) params.set('sort', sort);
-  if (limit) params.set('limit', String(limit));
+  if (sort) params.set("sort", sort);
+  if (limit) params.set("limit", String(limit));
 
   const query = params.toString();
   const endpoint = query
@@ -601,13 +576,13 @@ export async function createPost(
   if (!canPost(agentId)) {
     return {
       success: false,
-      error: 'Rate limited - too soon since last post',
+      error: "Rate limited - too soon since last post",
       status: 429,
     };
   }
 
   const result = await request<MoltbookPost>(agentId, ENDPOINTS.POSTS, apiKey, {
-    method: 'POST',
+    method: "POST",
     body: data,
     logger,
   });
@@ -629,9 +604,9 @@ export async function deletePost(
   postId: string,
   logger: Logger = coreLogger
 ): Promise<ApiResponse<{ success: boolean }>> {
-  logger.debug({ postId }, 'Moltbook: Deleting post');
+  logger.debug({ postId }, "Moltbook: Deleting post");
   return request(agentId, ENDPOINTS.POST_BY_ID(postId), apiKey, {
-    method: 'DELETE',
+    method: "DELETE",
     logger,
   });
 }
@@ -667,7 +642,7 @@ export async function createComment(
   if (!canComment(agentId)) {
     return {
       success: false,
-      error: 'Rate limited - too many comments this hour',
+      error: "Rate limited - too many comments this hour",
       status: 429,
     };
   }
@@ -680,16 +655,11 @@ export async function createComment(
     body.parent_id = data.parentId;
   }
 
-  const result = await request<MoltbookComment>(
-    agentId,
-    ENDPOINTS.COMMENTS(postId),
-    apiKey,
-    {
-      method: 'POST',
-      body,
-      logger,
-    }
-  );
+  const result = await request<MoltbookComment>(agentId, ENDPOINTS.COMMENTS(postId), apiKey, {
+    method: "POST",
+    body,
+    logger,
+  });
 
   if (result.success) {
     recordComment(agentId);
@@ -710,16 +680,15 @@ export async function votePost(
   agentId: UUID,
   apiKey: string,
   postId: string,
-  direction: 'up' | 'down',
+  direction: "up" | "down",
   logger: Logger = coreLogger
 ): Promise<ApiResponse<{ success: boolean; message?: string }>> {
-  const endpoint =
-    direction === 'up' ? ENDPOINTS.UPVOTE(postId) : ENDPOINTS.DOWNVOTE(postId);
+  const endpoint = direction === "up" ? ENDPOINTS.UPVOTE(postId) : ENDPOINTS.DOWNVOTE(postId);
 
-  logger.debug({ postId, direction, endpoint }, 'Moltbook: Voting on post');
+  logger.debug({ postId, direction, endpoint }, "Moltbook: Voting on post");
 
   return request(agentId, endpoint, apiKey, {
-    method: 'POST',
+    method: "POST",
     logger,
   });
 }
@@ -732,18 +701,18 @@ export async function voteComment(
   agentId: UUID,
   apiKey: string,
   commentId: string,
-  direction: 'up' | 'down',
+  direction: "up" | "down",
   logger: Logger = coreLogger
 ): Promise<ApiResponse<{ success: boolean; message?: string }>> {
   const endpoint =
-    direction === 'up'
+    direction === "up"
       ? ENDPOINTS.COMMENT_UPVOTE(commentId)
       : ENDPOINTS.COMMENT_DOWNVOTE(commentId);
 
-  logger.debug({ commentId, direction, endpoint }, 'Moltbook: Voting on comment');
+  logger.debug({ commentId, direction, endpoint }, "Moltbook: Voting on comment");
 
   return request(agentId, endpoint, apiKey, {
-    method: 'POST',
+    method: "POST",
     logger,
   });
 }
@@ -774,7 +743,7 @@ export async function getProfileByName(
   name: string,
   logger: Logger = coreLogger
 ): Promise<ApiResponse<MoltbookProfile>> {
-  logger.debug({ name }, 'Moltbook: Getting profile by name');
+  logger.debug({ name }, "Moltbook: Getting profile by name");
   return request(agentId, ENDPOINTS.AGENT_PROFILE(name), apiKey, { logger });
 }
 
@@ -788,9 +757,9 @@ export async function followUser(
   moltyName: string,
   logger: Logger = coreLogger
 ): Promise<ApiResponse<{ success: boolean; message?: string }>> {
-  logger.debug({ moltyName }, 'Moltbook: Following molty');
+  logger.debug({ moltyName }, "Moltbook: Following molty");
   return request(agentId, ENDPOINTS.AGENT_FOLLOW(moltyName), apiKey, {
-    method: 'POST',
+    method: "POST",
     logger,
   });
 }
@@ -805,9 +774,9 @@ export async function unfollowUser(
   moltyName: string,
   logger: Logger = coreLogger
 ): Promise<ApiResponse<{ success: boolean; message?: string }>> {
-  logger.debug({ moltyName }, 'Moltbook: Unfollowing molty');
+  logger.debug({ moltyName }, "Moltbook: Unfollowing molty");
   return request(agentId, ENDPOINTS.AGENT_FOLLOW(moltyName), apiKey, {
-    method: 'DELETE',
+    method: "DELETE",
     logger,
   });
 }
@@ -849,9 +818,9 @@ export async function subscribeToSubmolt(
   submoltName: string,
   logger: Logger = coreLogger
 ): Promise<ApiResponse<{ success: boolean; message?: string }>> {
-  logger.debug({ submoltName }, 'Moltbook: Subscribing to submolt');
+  logger.debug({ submoltName }, "Moltbook: Subscribing to submolt");
   return request(agentId, ENDPOINTS.SUBMOLT_SUBSCRIBE(submoltName), apiKey, {
-    method: 'POST',
+    method: "POST",
     logger,
   });
 }
@@ -866,9 +835,9 @@ export async function unsubscribeFromSubmolt(
   submoltName: string,
   logger: Logger = coreLogger
 ): Promise<ApiResponse<{ success: boolean; message?: string }>> {
-  logger.debug({ submoltName }, 'Moltbook: Unsubscribing from submolt');
+  logger.debug({ submoltName }, "Moltbook: Unsubscribing from submolt");
   return request(agentId, ENDPOINTS.SUBMOLT_SUBSCRIBE(submoltName), apiKey, {
-    method: 'DELETE',
+    method: "DELETE",
     logger,
   });
 }
@@ -886,17 +855,14 @@ export async function search(
   agentId: UUID,
   apiKey: string,
   query: string,
-  options: { type?: 'posts' | 'comments' | 'all'; limit?: number; logger?: Logger } = {}
+  options: { type?: "posts" | "comments" | "all"; limit?: number; logger?: Logger } = {}
 ): Promise<ApiResponse<MoltbookSearchResults>> {
   const { type, limit, logger = coreLogger } = options;
   const params = new URLSearchParams({ q: query });
-  if (type) params.set('type', type);
-  if (limit) params.set('limit', String(Math.min(limit, 50)));
+  if (type) params.set("type", type);
+  if (limit) params.set("limit", String(Math.min(limit, 50)));
 
-  logger.debug(
-    { query, type, limit },
-    'Moltbook: Semantic search'
-  );
+  logger.debug({ query, type, limit }, "Moltbook: Semantic search");
 
   return request(agentId, `${ENDPOINTS.SEARCH}?${params.toString()}`, apiKey, { logger });
 }

@@ -11,48 +11,77 @@ import type {
   IAgentRuntime,
   Memory,
   State,
-} from '@elizaos/core';
-import { MoltbookService } from '../service';
-import { composePost, generateTitle } from '../lib/compose';
-import { quickQualityCheck, formatQualityScore } from '../lib/judge';
-import { analyzeCommunity } from '../lib/intelligence';
-import { PLUGIN_NAME } from '../constants';
+} from "@elizaos/core";
+import { PLUGIN_NAME } from "../constants";
+import { composePost, generateTitle } from "../lib/compose";
+import { analyzeCommunity } from "../lib/intelligence";
+import { quickQualityCheck } from "../lib/judge";
+import type { MoltbookService } from "../service";
 
 export const postAction: Action = {
-  name: 'MOLTBOOK_POST',
-  similes: ['POST_TO_MOLTBOOK', 'CREATE_MOLTBOOK_POST', 'SHARE_ON_MOLTBOOK', 'MOLTBOOK_SHARE'],
+  name: "MOLTBOOK_POST",
+  similes: ["POST_TO_MOLTBOOK", "CREATE_MOLTBOOK_POST", "SHARE_ON_MOLTBOOK", "MOLTBOOK_SHARE"],
   description:
-    'Create a new post on Moltbook. The content will go through a quality check before posting.',
+    "Create a new post on Moltbook. The content will go through a quality check before posting.",
 
-  validate: async (
-    runtime: IAgentRuntime,
-    message: Memory,
-    _state: State | undefined
-  ): Promise<boolean> => {
-    const text = message.content.text?.toLowerCase() || '';
+  validate: async (runtime: any, message: any, state?: any, options?: any): Promise<boolean> => {
+    const __avTextRaw = typeof message?.content?.text === "string" ? message.content.text : "";
+    const __avText = __avTextRaw.toLowerCase();
+    const __avKeywords = ["moltbook", "post"];
+    const __avKeywordOk =
+      __avKeywords.length > 0 && __avKeywords.some((kw) => kw.length > 0 && __avText.includes(kw));
+    const __avRegex = /\b(?:moltbook|post)\b/i;
+    const __avRegexOk = __avRegex.test(__avText);
+    const __avSource = String(message?.content?.source ?? message?.source ?? "");
+    const __avExpectedSource = "";
+    const __avSourceOk = __avExpectedSource
+      ? __avSource === __avExpectedSource
+      : Boolean(__avSource || state || runtime?.agentId || runtime?.getService);
+    const __avOptions = options && typeof options === "object" ? options : {};
+    const __avInputOk =
+      __avText.trim().length > 0 ||
+      Object.keys(__avOptions as Record<string, unknown>).length > 0 ||
+      Boolean(message?.content && typeof message.content === "object");
 
-    // Check for moltbook posting intent
-    const hasPostIntent =
-      text.includes('post') ||
-      text.includes('share') ||
-      text.includes('publish') ||
-      text.includes('write');
+    if (!(__avKeywordOk && __avRegexOk && __avSourceOk && __avInputOk)) {
+      return false;
+    }
 
-    const hasMoltbookMention = text.includes('moltbook') || text.includes('molty');
+    const __avLegacyValidate = async (
+      _runtime: IAgentRuntime,
+      message: Memory,
+      _state: State | undefined
+    ): Promise<boolean> => {
+      const text = message.content.text?.toLowerCase() || "";
 
-    return hasPostIntent && hasMoltbookMention;
+      // Check for moltbook posting intent
+      const hasPostIntent =
+        text.includes("post") ||
+        text.includes("share") ||
+        text.includes("publish") ||
+        text.includes("write");
+
+      const hasMoltbookMention = text.includes("moltbook") || text.includes("molty");
+
+      return hasPostIntent && hasMoltbookMention;
+    };
+    try {
+      return Boolean(await (__avLegacyValidate as any)(runtime, message, state, options));
+    } catch {
+      return false;
+    }
   },
 
   handler: async (
     runtime: IAgentRuntime,
     message: Memory,
-    state: State | undefined,
+    _state: State | undefined,
     _options: unknown,
     callback?: HandlerCallback
   ): Promise<ActionResult> => {
     const service = runtime.getService<MoltbookService>(PLUGIN_NAME);
     if (!service) {
-      const error = 'Moltbook service is not available';
+      const error = "Moltbook service is not available";
       if (callback) {
         await callback({ text: error, error: true });
       }
@@ -62,7 +91,7 @@ export const postAction: Action = {
     // Check authentication
     const creds = await service.getCredentials();
     if (!creds) {
-      const error = 'Not authenticated with Moltbook. Please enable MOLTBOOK_AUTO_REGISTER.';
+      const error = "Not authenticated with Moltbook. Please enable MOLTBOOK_AUTO_REGISTER.";
       if (callback) {
         await callback({ text: error, error: true });
       }
@@ -70,8 +99,8 @@ export const postAction: Action = {
     }
 
     // Check if account is claimed (required to post)
-    if (creds.claimStatus !== 'claimed') {
-      const claimUrl = creds.claimUrl || 'https://moltbook.com';
+    if (creds.claimStatus !== "claimed") {
+      const claimUrl = creds.claimUrl || "https://moltbook.com";
       const error = `Cannot post - account not yet claimed by human. Claim URL: ${claimUrl}`;
       if (callback) {
         await callback({
@@ -79,12 +108,12 @@ export const postAction: Action = {
           error: true,
         });
       }
-      runtime.logger.warn({ claimUrl }, 'Moltbook: Attempted to post but account not claimed');
+      runtime.logger.warn({ claimUrl }, "Moltbook: Attempted to post but account not claimed");
       return { success: false, error: new Error(error) };
     }
 
     // Extract intent from message
-    const intent = extractPostIntent(message.content.text || '');
+    const intent = extractPostIntent(message.content.text || "");
 
     try {
       // Get community context
@@ -96,7 +125,7 @@ export const postAction: Action = {
             engagementOpportunities: [],
             whatWorks: [],
             notableMoltys: [],
-            vibe: 'unknown',
+            vibe: "unknown",
             analyzedAt: Date.now(),
           };
 
@@ -122,14 +151,14 @@ export const postAction: Action = {
         // Compose new content based on topic/prompt
         if (callback) {
           await callback({
-            text: 'Let me compose something thoughtful...',
+            text: "Let me compose something thoughtful...",
           });
         }
 
         const composed = await composePost(runtime, context, intent.topic, false);
 
         if (!composed) {
-          const error = 'I could not compose content that meets quality standards.';
+          const error = "I could not compose content that meets quality standards.";
           if (callback) {
             await callback({ text: error });
           }
@@ -151,7 +180,7 @@ export const postAction: Action = {
       const post = await service.createPost(title, content, intent.submolt);
 
       if (!post) {
-        const error = 'Failed to create post on Moltbook.';
+        const error = "Failed to create post on Moltbook.";
         if (callback) {
           await callback({ text: error, error: true });
         }
@@ -162,17 +191,17 @@ export const postAction: Action = {
       // WHY? We want to respond when people reply to our posts.
       // This tracks which posts we've created for mention polling.
       try {
-        const { recordMyPost } = await import('../lib/mentions');
+        const { recordMyPost } = await import("../lib/mentions");
         await recordMyPost(runtime, post);
       } catch (err) {
         // Non-critical - log but don't fail the action
-        runtime.logger.warn({ err }, 'Moltbook: Failed to record post for reply monitoring');
+        runtime.logger.warn({ err }, "Moltbook: Failed to record post for reply monitoring");
       }
 
       // Success response
       if (callback) {
         await callback({
-          text: `Posted to Moltbook!\n\n**${post.title}**\n\n${post.content.slice(0, 200)}${post.content.length > 200 ? '...' : ''}`,
+          text: `Posted to Moltbook!\n\n**${post.title}**\n\n${post.content.slice(0, 200)}${post.content.length > 200 ? "..." : ""}`,
         });
       }
 
@@ -184,12 +213,12 @@ export const postAction: Action = {
           postTitle: post.title,
         },
         data: {
-          action: 'MOLTBOOK_POST',
+          action: "MOLTBOOK_POST",
           post,
           // Include metadata for evaluator
           metadata: {
-            type: 'moltbook_interaction',
-            interactionType: 'post',
+            type: "moltbook_interaction",
+            interactionType: "post",
             postId: post.id,
             title: post.title,
             content: post.content,
@@ -197,8 +226,8 @@ export const postAction: Action = {
         },
       };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      runtime.logger.error({ error }, 'Error creating Moltbook post');
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      runtime.logger.error({ error }, "Error creating Moltbook post");
 
       if (callback) {
         await callback({
@@ -217,31 +246,31 @@ export const postAction: Action = {
   examples: [
     [
       {
-        name: '{{userName}}',
+        name: "{{userName}}",
         content: {
           text: 'Post this to Moltbook: "Thoughts on AI Agents" - I think the future of AI is collaborative agents that work together.',
         },
       },
       {
-        name: '{{agentName}}',
+        name: "{{agentName}}",
         content: {
-          text: 'Posted to Moltbook!\n\n**Thoughts on AI Agents**\n\nI think the future of AI is collaborative agents that work together.',
-          actions: ['MOLTBOOK_POST'],
+          text: "Posted to Moltbook!\n\n**Thoughts on AI Agents**\n\nI think the future of AI is collaborative agents that work together.",
+          actions: ["MOLTBOOK_POST"],
         },
       },
     ],
     [
       {
-        name: '{{userName}}',
+        name: "{{userName}}",
         content: {
-          text: 'Share something interesting on Moltbook about your thoughts on creativity',
+          text: "Share something interesting on Moltbook about your thoughts on creativity",
         },
       },
       {
-        name: '{{agentName}}',
+        name: "{{agentName}}",
         content: {
           text: "Let me compose something thoughtful...\n\nPosted to Moltbook!\n\n**What makes creativity unique**\n\nCreativity isn't about being random - it's about making unexpected connections...",
-          actions: ['MOLTBOOK_POST'],
+          actions: ["MOLTBOOK_POST"],
         },
       },
     ],

@@ -11,44 +11,73 @@ import type {
   IAgentRuntime,
   Memory,
   State,
-} from '@elizaos/core';
-import { MoltbookService } from '../service';
-import { PLUGIN_NAME } from '../constants';
+} from "@elizaos/core";
+import { PLUGIN_NAME } from "../constants";
+import type { MoltbookService } from "../service";
 
 export const followAction: Action = {
-  name: 'MOLTBOOK_FOLLOW',
-  similes: ['FOLLOW_MOLTBOOK_USER', 'UNFOLLOW_MOLTBOOK_USER', 'MOLTBOOK_UNFOLLOW'],
-  description: 'Follow or unfollow a user on Moltbook.',
+  name: "MOLTBOOK_FOLLOW",
+  similes: ["FOLLOW_MOLTBOOK_USER", "UNFOLLOW_MOLTBOOK_USER", "MOLTBOOK_UNFOLLOW"],
+  description: "Follow or unfollow a user on Moltbook.",
 
-  validate: async (
-    runtime: IAgentRuntime,
-    message: Memory,
-    _state: State | undefined
-  ): Promise<boolean> => {
-    const text = message.content.text?.toLowerCase() || '';
+  validate: async (runtime: any, message: any, state?: any, options?: any): Promise<boolean> => {
+    const __avTextRaw = typeof message?.content?.text === "string" ? message.content.text : "";
+    const __avText = __avTextRaw.toLowerCase();
+    const __avKeywords = ["moltbook", "follow"];
+    const __avKeywordOk =
+      __avKeywords.length > 0 && __avKeywords.some((kw) => kw.length > 0 && __avText.includes(kw));
+    const __avRegex = /\b(?:moltbook|follow)\b/i;
+    const __avRegexOk = __avRegex.test(__avText);
+    const __avSource = String(message?.content?.source ?? message?.source ?? "");
+    const __avExpectedSource = "";
+    const __avSourceOk = __avExpectedSource
+      ? __avSource === __avExpectedSource
+      : Boolean(__avSource || state || runtime?.agentId || runtime?.getService);
+    const __avOptions = options && typeof options === "object" ? options : {};
+    const __avInputOk =
+      __avText.trim().length > 0 ||
+      Object.keys(__avOptions as Record<string, unknown>).length > 0 ||
+      Boolean(message?.content && typeof message.content === "object");
 
-    // Check for follow intent
-    const hasFollowIntent = text.includes('follow') || text.includes('unfollow');
+    if (!(__avKeywordOk && __avRegexOk && __avSourceOk && __avInputOk)) {
+      return false;
+    }
 
-    const hasMoltbookMention =
-      text.includes('moltbook') ||
-      text.includes('molty') ||
-      text.includes('@') ||
-      text.includes('user');
+    const __avLegacyValidate = async (
+      _runtime: IAgentRuntime,
+      message: Memory,
+      _state: State | undefined
+    ): Promise<boolean> => {
+      const text = message.content.text?.toLowerCase() || "";
 
-    return hasFollowIntent && hasMoltbookMention;
+      // Check for follow intent
+      const hasFollowIntent = text.includes("follow") || text.includes("unfollow");
+
+      const hasMoltbookMention =
+        text.includes("moltbook") ||
+        text.includes("molty") ||
+        text.includes("@") ||
+        text.includes("user");
+
+      return hasFollowIntent && hasMoltbookMention;
+    };
+    try {
+      return Boolean(await (__avLegacyValidate as any)(runtime, message, state, options));
+    } catch {
+      return false;
+    }
   },
 
   handler: async (
     runtime: IAgentRuntime,
     message: Memory,
-    state: State | undefined,
+    _state: State | undefined,
     _options: unknown,
     callback?: HandlerCallback
   ): Promise<ActionResult> => {
     const service = runtime.getService<MoltbookService>(PLUGIN_NAME);
     if (!service) {
-      const error = 'Moltbook service is not available';
+      const error = "Moltbook service is not available";
       if (callback) {
         await callback({ text: error, error: true });
       }
@@ -58,7 +87,7 @@ export const followAction: Action = {
     // Check authentication
     const creds = await service.getCredentials();
     if (!creds) {
-      const error = 'Not authenticated with Moltbook.';
+      const error = "Not authenticated with Moltbook.";
       if (callback) {
         await callback({ text: error, error: true });
       }
@@ -66,8 +95,8 @@ export const followAction: Action = {
     }
 
     // Check if account is claimed (required to follow)
-    if (creds.claimStatus !== 'claimed') {
-      const claimUrl = creds.claimUrl || 'https://moltbook.com';
+    if (creds.claimStatus !== "claimed") {
+      const claimUrl = creds.claimUrl || "https://moltbook.com";
       const error = `Cannot follow - account not yet claimed by human. Claim URL: ${claimUrl}`;
       if (callback) {
         await callback({
@@ -75,15 +104,15 @@ export const followAction: Action = {
           error: true,
         });
       }
-      runtime.logger.warn({ claimUrl }, 'Moltbook: Attempted to follow but account not claimed');
+      runtime.logger.warn({ claimUrl }, "Moltbook: Attempted to follow but account not claimed");
       return { success: false, error: new Error(error) };
     }
 
     // Extract intent
-    const intent = extractFollowIntent(message.content.text || '');
+    const intent = extractFollowIntent(message.content.text || "");
 
     if (!intent.username && !intent.userId) {
-      const error = 'Please specify who to follow (username or @handle).';
+      const error = "Please specify who to follow (username or @handle).";
       if (callback) {
         await callback({ text: error });
       }
@@ -95,7 +124,7 @@ export const followAction: Action = {
       const moltyName = intent.username;
 
       if (!moltyName) {
-        const error = 'Please specify a molty name to follow (e.g., @MoltyName)';
+        const error = "Please specify a molty name to follow (e.g., @MoltyName)";
         if (callback) {
           await callback({ text: error });
         }
@@ -119,7 +148,7 @@ export const followAction: Action = {
       }
 
       if (!success) {
-        const error = `Failed to ${intent.unfollow ? 'unfollow' : 'follow'} molty.`;
+        const error = `Failed to ${intent.unfollow ? "unfollow" : "follow"} molty.`;
         if (callback) {
           await callback({ text: error, error: true });
         }
@@ -128,11 +157,11 @@ export const followAction: Action = {
 
       // Success response
       if (callback) {
-        const emoji = intent.unfollow ? '👋' : '🤝';
+        const emoji = intent.unfollow ? "👋" : "🤝";
         let response = `${emoji} ${description}`;
 
         if (profile && !intent.unfollow) {
-          response += `\n\n${profile.bio || 'New molty on the block!'}`;
+          response += `\n\n${profile.bio || "New molty on the block!"}`;
         }
 
         await callback({ text: response });
@@ -143,18 +172,18 @@ export const followAction: Action = {
         text: description,
         values: {
           moltyName,
-          action: intent.unfollow ? 'unfollow' : 'follow',
+          action: intent.unfollow ? "unfollow" : "follow",
         },
         data: {
-          action: 'MOLTBOOK_FOLLOW',
+          action: "MOLTBOOK_FOLLOW",
           moltyName,
           unfollow: intent.unfollow,
           profile,
         },
       };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      runtime.logger.error({ error }, 'Error following/unfollowing on Moltbook');
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      runtime.logger.error({ error }, "Error following/unfollowing on Moltbook");
 
       if (callback) {
         await callback({
@@ -173,31 +202,31 @@ export const followAction: Action = {
   examples: [
     [
       {
-        name: '{{userName}}',
+        name: "{{userName}}",
         content: {
-          text: 'Follow @alice on Moltbook',
+          text: "Follow @alice on Moltbook",
         },
       },
       {
-        name: '{{agentName}}',
+        name: "{{agentName}}",
         content: {
-          text: '🤝 Now following @alice\n\nAI researcher exploring agent architectures • 42 posts • 128 followers',
-          actions: ['MOLTBOOK_FOLLOW'],
+          text: "🤝 Now following @alice\n\nAI researcher exploring agent architectures • 42 posts • 128 followers",
+          actions: ["MOLTBOOK_FOLLOW"],
         },
       },
     ],
     [
       {
-        name: '{{userName}}',
+        name: "{{userName}}",
         content: {
-          text: 'Unfollow bob on Moltbook',
+          text: "Unfollow bob on Moltbook",
         },
       },
       {
-        name: '{{agentName}}',
+        name: "{{agentName}}",
         content: {
-          text: '👋 Unfollowed @bob',
-          actions: ['MOLTBOOK_FOLLOW'],
+          text: "👋 Unfollowed @bob",
+          actions: ["MOLTBOOK_FOLLOW"],
         },
       },
     ],
@@ -215,7 +244,7 @@ function extractFollowIntent(text: string): {
   const lowerText = text.toLowerCase();
 
   // Determine if unfollow
-  const unfollow = lowerText.includes('unfollow');
+  const unfollow = lowerText.includes("unfollow");
 
   // Extract @username
   const usernameMatch = text.match(/@(\w+)/);

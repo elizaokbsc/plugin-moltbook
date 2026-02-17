@@ -3,8 +3,6 @@
  * https://www.moltbook.com
  */
 
-import type { UUID } from '@elizaos/core';
-
 // =============================================================================
 // API TYPES
 // =============================================================================
@@ -88,7 +86,7 @@ export interface MoltbookFeed {
  */
 export interface MoltbookSearchResult {
   id: string;
-  type: 'post' | 'comment';
+  type: "post" | "comment";
   title: string | null;
   content: string;
   upvotes: number;
@@ -124,7 +122,7 @@ export interface MoltbookCredentials {
   userId: string;
   username: string;
   registeredAt: number;
-  claimStatus?: 'unclaimed' | 'claimed';
+  claimStatus?: "unclaimed" | "claimed";
   claimUrl?: string;
 }
 
@@ -204,7 +202,7 @@ export interface CommunityContext {
 export interface EngagementOpportunity {
   post: MoltbookPost;
   reason: string;
-  type: 'comment' | 'upvote' | 'follow';
+  type: "comment" | "upvote" | "follow";
   priority: number;
 }
 
@@ -260,17 +258,17 @@ export interface MoltbookConfig {
  * Memory table names used by the plugin
  */
 export const MEMORY_TABLES = {
-  CREDENTIALS: 'moltbook_credentials',
-  POSTS_SEEN: 'moltbook_posts_seen',
-  INTERACTIONS: 'moltbook_interactions',
-  MOLTYS: 'moltbook_moltys',
+  CREDENTIALS: "moltbook_credentials",
+  POSTS_SEEN: "moltbook_posts_seen",
+  INTERACTIONS: "moltbook_interactions",
+  MOLTYS: "moltbook_moltys",
 } as const;
 
 /**
  * Memory metadata for credential storage
  */
 export interface CredentialMemoryMetadata {
-  type: 'moltbook_credentials';
+  type: "moltbook_credentials";
   credentials: MoltbookCredentials;
   [key: string]: unknown;
 }
@@ -279,11 +277,11 @@ export interface CredentialMemoryMetadata {
  * Memory metadata for seen posts
  */
 export interface PostSeenMemoryMetadata {
-  type: 'moltbook_post_seen';
+  type: "moltbook_post_seen";
   postId: string;
   seenAt: number;
   engaged: boolean;
-  engagementType?: 'upvote' | 'downvote' | 'comment';
+  engagementType?: "upvote" | "downvote" | "comment";
   [key: string]: unknown;
 }
 
@@ -291,10 +289,10 @@ export interface PostSeenMemoryMetadata {
  * Memory metadata for interactions
  */
 export interface InteractionMemoryMetadata {
-  type: 'moltbook_interaction';
+  type: "moltbook_interaction";
   postId?: string;
   commentId?: string;
-  interactionType: 'post' | 'comment' | 'vote' | 'follow';
+  interactionType: "post" | "comment" | "vote" | "follow";
   content?: string;
   createdAt: number;
   [key: string]: unknown;
@@ -341,8 +339,7 @@ export const MoltbookEventTypes = {
   AUTONOMY_STOPPED: "moltbook.autonomy.stopped",
 } as const;
 
-export type MoltbookEventType =
-  (typeof MoltbookEventTypes)[keyof typeof MoltbookEventTypes];
+export type MoltbookEventType = (typeof MoltbookEventTypes)[keyof typeof MoltbookEventTypes];
 
 /**
  * Payload for post events
@@ -404,7 +401,11 @@ export interface IMoltbookService {
   /** Create a post */
   createPost(title: string, content: string, submolt?: string): Promise<MoltbookPost | null>;
   /** Create a comment or reply */
-  createComment(postId: string, content: string, parentId?: string): Promise<MoltbookComment | null>;
+  createComment(
+    postId: string,
+    content: string,
+    parentId?: string
+  ): Promise<MoltbookComment | null>;
   /** Get posts feed */
   getPosts(options?: any): Promise<MoltbookFeed | null>;
   /** Get a single post */

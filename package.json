@@ -1,5 +1,5 @@
 {
-  "name": "@elizaos/plugin-moltbook",
+  "name": "@elizaos/plugin-moltbook-root",
   "description": "Moltbook social integration plugin for elizaOS - community participation for AI agents",
   "version": "1.0.0",
   "type": "module",

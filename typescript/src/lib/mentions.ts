@@ -19,26 +19,26 @@
  * respectful of the Moltbook API and to avoid IP bans.
  */
 
-import type { IAgentRuntime, Memory, UUID, Content, HandlerCallback } from '@elizaos/core';
-import { createUniqueUuid, EventType } from '@elizaos/core';
-import type { MoltbookComment, MoltbookPost } from '../types';
-import type { MoltbookService } from '../service';
+import type { Content, HandlerCallback, IAgentRuntime, Memory } from "@elizaos/core";
+import { createUniqueUuid, EventType } from "@elizaos/core";
+import type { MoltbookService } from "../service";
+import type { MoltbookComment, MoltbookPost } from "../types";
 
 /**
  * Key prefix for tracking which comments we've seen/processed
  */
-const SEEN_COMMENT_PREFIX = 'moltbook_seen_comment';
+const SEEN_COMMENT_PREFIX = "moltbook_seen_comment";
 
 /**
  * Key for tracking which posts we've created (to check for replies)
  */
-const MY_POSTS_KEY = 'moltbook_my_posts';
+const MY_POSTS_KEY = "moltbook_my_posts";
 
 /**
  * Metadata stored when we see a comment
  */
 interface SeenCommentMetadata {
-  type: 'moltbook_seen_comment';
+  type: "moltbook_seen_comment";
   commentId: string;
   postId: string;
   seenAt: number;
@@ -50,7 +50,7 @@ interface SeenCommentMetadata {
  * Metadata for tracking our own posts
  */
 interface MyPostMetadata {
-  type: 'moltbook_my_post';
+  type: "moltbook_my_post";
   postId: string;
   title: string;
   createdAt: number;
@@ -60,7 +60,7 @@ interface MyPostMetadata {
  * A mention or reply that needs handling
  */
 export interface MentionEvent {
-  type: 'reply' | 'mention';
+  type: "reply" | "mention";
   comment: MoltbookComment;
   post: MoltbookPost;
   /** If this is a reply to our comment specifically */
@@ -74,14 +74,11 @@ export interface MentionEvent {
  * We only want to monitor posts WE created for replies.
  * Tracking allows efficient polling - we only check our posts.
  */
-export async function recordMyPost(
-  runtime: IAgentRuntime,
-  post: MoltbookPost
-): Promise<void> {
+export async function recordMyPost(runtime: IAgentRuntime, post: MoltbookPost): Promise<void> {
   const memoryId = createUniqueUuid(runtime, `${MY_POSTS_KEY}_${post.id}`);
 
   const metadata: MyPostMetadata = {
-    type: 'moltbook_my_post',
+    type: "moltbook_my_post",
     postId: post.id,
     title: post.title,
     createdAt: Date.now(),
@@ -98,12 +95,12 @@ export async function recordMyPost(
         metadata: metadata as any,
       },
     },
-    'moltbook_my_posts'
+    "moltbook_my_posts"
   );
 
   runtime.logger.debug(
     { postId: post.id, title: post.title },
-    'Moltbook: Recorded my post for reply monitoring'
+    "Moltbook: Recorded my post for reply monitoring"
   );
 }
 
@@ -115,19 +112,19 @@ export async function getMyPosts(
 ): Promise<{ postId: string; title: string }[]> {
   try {
     const memories = await runtime.getMemories({
-      tableName: 'moltbook_my_posts',
+      tableName: "moltbook_my_posts",
       roomId: runtime.agentId,
       count: 50, // Recent posts only
     });
 
     return memories
-      .filter((m) => (m.content.metadata as any)?.type === 'moltbook_my_post')
+      .filter((m) => (m.content.metadata as any)?.type === "moltbook_my_post")
       .map((m) => {
         const meta = m.content.metadata as any as MyPostMetadata;
         return { postId: meta.postId, title: meta.title };
       });
   } catch (error) {
-    runtime.logger.error({ error }, 'Moltbook: Failed to get my posts');
+    runtime.logger.error({ error }, "Moltbook: Failed to get my posts");
     return [];
   }
 }
@@ -135,10 +132,7 @@ export async function getMyPosts(
 /**
  * Check if we've already processed a comment
  */
-async function hasSeenComment(
-  runtime: IAgentRuntime,
-  commentId: string
-): Promise<boolean> {
+async function hasSeenComment(runtime: IAgentRuntime, commentId: string): Promise<boolean> {
   const memoryId = createUniqueUuid(runtime, `${SEEN_COMMENT_PREFIX}_${commentId}`);
 
   try {
@@ -161,7 +155,7 @@ async function markCommentSeen(
   const memoryId = createUniqueUuid(runtime, `${SEEN_COMMENT_PREFIX}_${comment.id}`);
 
   const metadata: SeenCommentMetadata = {
-    type: 'moltbook_seen_comment',
+    type: "moltbook_seen_comment",
     commentId: comment.id,
     postId: comment.postId,
     seenAt: Date.now(),
@@ -180,7 +174,7 @@ async function markCommentSeen(
         metadata: metadata as any,
       },
     },
-    'moltbook_seen_comments'
+    "moltbook_seen_comments"
   );
 }
 
@@ -203,7 +197,7 @@ export async function pollForMentions(
   // Get our profile to know our username
   const profile = await service.getOwnProfile();
   if (!profile) {
-    runtime.logger.debug('Moltbook: No profile found, skipping mention poll');
+    runtime.logger.debug("Moltbook: No profile found, skipping mention poll");
     return [];
   }
 
@@ -213,17 +207,14 @@ export async function pollForMentions(
   const myPosts = await getMyPosts(runtime);
 
   if (myPosts.length === 0) {
-    runtime.logger.debug('Moltbook: No posts to monitor for replies');
+    runtime.logger.debug("Moltbook: No posts to monitor for replies");
     return [];
   }
 
-  runtime.logger.debug(
-    { postCount: myPosts.length },
-    'Moltbook: Polling for mentions on my posts'
-  );
+  runtime.logger.debug({ postCount: myPosts.length }, "Moltbook: Polling for mentions on my posts");
 
   // Check each post for new comments
-  for (const { postId, title } of myPosts.slice(0, 10)) {
+  for (const { postId } of myPosts.slice(0, 10)) {
     // Only check recent 10 posts
     try {
       const post = await service.getPost(postId);
@@ -247,7 +238,7 @@ export async function pollForMentions(
 
         // Any comment on our post is considered a "reply" to us
         mentions.push({
-          type: isMention ? 'mention' : 'reply',
+          type: isMention ? "mention" : "reply",
           comment,
           post,
         });
@@ -266,7 +257,7 @@ export async function pollForMentions(
             const isReplyMention = reply.content.toLowerCase().includes(`@${myUsername}`);
 
             mentions.push({
-              type: isReplyMention ? 'mention' : 'reply',
+              type: isReplyMention ? "mention" : "reply",
               comment: reply,
               post,
               parentComment: comment,
@@ -275,17 +266,11 @@ export async function pollForMentions(
         }
       }
     } catch (error) {
-      runtime.logger.warn(
-        { error, postId },
-        'Moltbook: Failed to check post for mentions'
-      );
+      runtime.logger.warn({ error, postId }, "Moltbook: Failed to check post for mentions");
     }
   }
 
-  runtime.logger.debug(
-    { mentionCount: mentions.length },
-    'Moltbook: Found new mentions/replies'
-  );
+  runtime.logger.debug({ mentionCount: mentions.length }, "Moltbook: Found new mentions/replies");
 
   return mentions;
 }
@@ -298,10 +283,7 @@ export async function pollForMentions(
  * Converting allows us to use the standard message handling pipeline,
  * so the agent responds to Moltbook comments like any other message.
  */
-export function commentToMemory(
-  runtime: IAgentRuntime,
-  mention: MentionEvent
-): Memory {
+export function commentToMemory(runtime: IAgentRuntime, mention: MentionEvent): Memory {
   // Create deterministic room ID for Moltbook post conversations
   const roomId = createUniqueUuid(runtime, `moltbook_post_${mention.post.id}`);
 
@@ -318,9 +300,9 @@ export function commentToMemory(
     entityId,
     content: {
       text: mention.comment.content,
-      source: 'moltbook',
+      source: "moltbook",
       metadata: {
-        platform: 'moltbook',
+        platform: "moltbook",
         commentId: mention.comment.id,
         postId: mention.post.id,
         postTitle: mention.post.title,
@@ -328,8 +310,8 @@ export function commentToMemory(
         authorUsername: mention.comment.author.username,
         parentCommentId: mention.parentComment?.id,
         mentionType: mention.type,
-        isReply: mention.type === 'reply',
-        isMention: mention.type === 'mention',
+        isReply: mention.type === "reply",
+        isMention: mention.type === "mention",
         upvotes: mention.comment.upvotes,
         downvotes: mention.comment.downvotes,
         createdAt: mention.comment.createdAt,
@@ -367,7 +349,7 @@ export async function processMentions(
             commentId: mention.comment.id,
             responseLength: response.text.length,
           },
-          'Moltbook: Sending reply to comment'
+          "Moltbook: Sending reply to comment"
         );
 
         // Post reply as a comment
@@ -380,7 +362,7 @@ export async function processMentions(
         if (result) {
           runtime.logger.info(
             { newCommentId: result.id },
-            'Moltbook: Successfully replied to comment'
+            "Moltbook: Successfully replied to comment"
           );
         }
 
@@ -397,7 +379,7 @@ export async function processMentions(
           runtime,
           message: memory,
           callback,
-          source: 'moltbook',
+          source: "moltbook",
         });
       }
 
@@ -407,7 +389,7 @@ export async function processMentions(
     } catch (error) {
       runtime.logger.error(
         { error, commentId: mention.comment.id },
-        'Moltbook: Failed to process mention'
+        "Moltbook: Failed to process mention"
       );
 
       // Mark as seen but not successfully processed

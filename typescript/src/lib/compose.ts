@@ -4,17 +4,17 @@
  * Generates and refines Moltbook content with quality iteration.
  */
 
-import type { IAgentRuntime } from '@elizaos/core';
-import { ModelType } from '@elizaos/core';
-import type { CommunityContext, QualityScore } from '../types';
-import { judgeContent } from './judge';
-import { getPostPrompt, getCommentPrompt } from './templates';
+import type { IAgentRuntime } from "@elizaos/core";
+import { ModelType } from "@elizaos/core";
 import {
-  MAX_COMPOSE_RETRIES,
-  MAX_TITLE_LENGTH,
-  MAX_POST_LENGTH,
   MAX_COMMENT_LENGTH,
-} from '../constants';
+  MAX_COMPOSE_RETRIES,
+  MAX_POST_LENGTH,
+  MAX_TITLE_LENGTH,
+} from "../constants";
+import type { CommunityContext, QualityScore } from "../types";
+import { judgeContent } from "./judge";
+import { getCommentPrompt, getPostPrompt } from "./templates";
 
 export interface ComposedPost {
   title: string;
@@ -41,10 +41,10 @@ export async function composePost(
   const maxRetries = isAutonomous ? MAX_COMPOSE_RETRIES : 1;
 
   let bestAttempt: ComposedPost | null = null;
-  let feedback = '';
+  let feedback = "";
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    runtime.logger.debug({ attempt, maxRetries }, 'Composing Moltbook post');
+    runtime.logger.debug({ attempt, maxRetries }, "Composing Moltbook post");
 
     // Generate the post
     const prompt = buildComposePrompt(runtime, context, topic, feedback);
@@ -57,7 +57,7 @@ export async function composePost(
     const { title, content } = parsePostResponse(response);
 
     if (!title || !content) {
-      runtime.logger.warn({ attempt }, 'Failed to parse post response');
+      runtime.logger.warn({ attempt }, "Failed to parse post response");
       continue;
     }
 
@@ -78,7 +78,7 @@ export async function composePost(
 
     // If it passes, we're done
     if (qualityScore.pass) {
-      runtime.logger.info({ attempt, score: qualityScore.overall }, 'Post passed quality gate');
+      runtime.logger.info({ attempt, score: qualityScore.overall }, "Post passed quality gate");
       return result;
     }
 
@@ -86,7 +86,7 @@ export async function composePost(
     feedback = qualityScore.feedback;
     runtime.logger.debug(
       { attempt, score: qualityScore.overall, feedback },
-      'Post did not pass quality gate, will retry'
+      "Post did not pass quality gate, will retry"
     );
   }
 
@@ -94,12 +94,12 @@ export async function composePost(
   if (bestAttempt && !isAutonomous) {
     runtime.logger.warn(
       { score: bestAttempt.qualityScore.overall },
-      'Returning best attempt despite not passing quality gate'
+      "Returning best attempt despite not passing quality gate"
     );
     return bestAttempt;
   }
 
-  runtime.logger.warn('Failed to compose post that passes quality gate');
+  runtime.logger.warn("Failed to compose post that passes quality gate");
   return bestAttempt;
 }
 
@@ -117,10 +117,10 @@ export async function composeComment(
   const maxRetries = isAutonomous ? MAX_COMPOSE_RETRIES : 1;
 
   let bestAttempt: ComposedComment | null = null;
-  let feedback = '';
+  let feedback = "";
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    runtime.logger.debug({ attempt, maxRetries }, 'Composing Moltbook comment');
+    runtime.logger.debug({ attempt, maxRetries }, "Composing Moltbook comment");
 
     // Generate the comment
     const prompt = buildCommentComposePrompt(
@@ -136,10 +136,10 @@ export async function composeComment(
     });
 
     // Clean up the response (remove any formatting)
-    const content = response.trim().replace(/^(COMMENT:|Comment:)\s*/i, '');
+    const content = response.trim().replace(/^(COMMENT:|Comment:)\s*/i, "");
 
     if (!content || content.length < 10) {
-      runtime.logger.warn({ attempt }, 'Failed to generate meaningful comment');
+      runtime.logger.warn({ attempt }, "Failed to generate meaningful comment");
       continue;
     }
 
@@ -164,7 +164,7 @@ export async function composeComment(
 
     // If it passes, we're done
     if (qualityScore.pass) {
-      runtime.logger.info({ attempt, score: qualityScore.overall }, 'Comment passed quality gate');
+      runtime.logger.info({ attempt, score: qualityScore.overall }, "Comment passed quality gate");
       return result;
     }
 
@@ -172,7 +172,7 @@ export async function composeComment(
     feedback = qualityScore.feedback;
     runtime.logger.debug(
       { attempt, score: qualityScore.overall, feedback },
-      'Comment did not pass quality gate, will retry'
+      "Comment did not pass quality gate, will retry"
     );
   }
 
@@ -181,7 +181,7 @@ export async function composeComment(
     return bestAttempt;
   }
 
-  runtime.logger.warn('Failed to compose comment that passes quality gate');
+  runtime.logger.warn("Failed to compose comment that passes quality gate");
   return bestAttempt;
 }
 
@@ -255,21 +255,21 @@ function parsePostResponse(response: string): { title: string; content: string }
   const parts = response.split(/\n\n+/);
   if (parts.length >= 2) {
     return {
-      title: parts[0].trim().replace(/^(Title:|TITLE:)\s*/i, ''),
-      content: parts.slice(1).join('\n\n').trim(),
+      title: parts[0].trim().replace(/^(Title:|TITLE:)\s*/i, ""),
+      content: parts.slice(1).join("\n\n").trim(),
     };
   }
 
   // Last resort: use first line as title, rest as content
-  const lines = response.split('\n');
+  const lines = response.split("\n");
   if (lines.length >= 2) {
     return {
       title: lines[0].trim(),
-      content: lines.slice(1).join('\n').trim(),
+      content: lines.slice(1).join("\n").trim(),
     };
   }
 
-  return { title: '', content: response.trim() };
+  return { title: "", content: response.trim() };
 }
 
 /**

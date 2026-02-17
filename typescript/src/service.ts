@@ -28,26 +28,35 @@
  *    (posting, voting) work without background tasks.
  */
 
-import { Service, type IAgentRuntime, type Memory, createUniqueUuid, logger, type EventPayload } from '@elizaos/core';
+import {
+  createUniqueUuid,
+  type EventPayload,
+  type IAgentRuntime,
+  type Memory,
+  Service,
+} from "@elizaos/core";
+import {
+  AUTONOMY_DEFAULTS,
+  CONTENT_LIMITS,
+  CRED_MEMORY_KEY,
+  CYCLE_INTERVAL_MS,
+  MOLTBOOK_CYCLE_TASK,
+  PLUGIN_NAME,
+} from "./constants";
+import * as api from "./lib/api";
+import { getAgentState, getRateLimitStatus } from "./lib/rateLimiter";
+import { moltbookCycleWorker } from "./tasks";
 import type {
+  CacheOptions,
+  MoltbookComment,
   MoltbookCredentials,
   MoltbookFeed,
   MoltbookPost,
-  MoltbookComment,
   MoltbookProfile,
-  MoltbookSubmolt,
   MoltbookSearchResults,
-  CacheOptions,
-  CachedData,
-  CredentialMemoryMetadata,
-  MoltbookResult,
-  MoltbookSettings,
-} from './types';
-import { MEMORY_TABLES, MoltbookEventTypes, moltbookSuccess, moltbookFailure } from './types';
-import { CRED_MEMORY_KEY, PLUGIN_NAME, MOLTBOOK_CYCLE_TASK, CYCLE_INTERVAL_MS, URLS, CONTENT_LIMITS, AUTONOMY_DEFAULTS, DEFAULT_SUBMOLT } from './constants';
-import * as api from './lib/api';
-import { getAgentState, getRateLimitStatus } from './lib/rateLimiter';
-import { moltbookCycleWorker } from './tasks';
+  MoltbookSubmolt,
+} from "./types";
+import { MEMORY_TABLES, MoltbookEventTypes } from "./types";
 
 export class MoltbookService extends Service {
   /**
@@ -61,16 +70,10 @@ export class MoltbookService extends Service {
    * Helps the agent understand what this service enables.
    */
   capabilityDescription =
-    'Enables the agent to participate in the Moltbook social network - posting, commenting, voting, and engaging with the community.';
+    "Enables the agent to participate in the Moltbook social network - posting, commenting, voting, and engaging with the community.";
 
   /** Tracks if service has been started (prevents double-start) */
   private isRunning = false;
-
-  /**
-   * Promise that resolves when background initialization completes.
-   * WHY expose this? Allows callers to await full initialization if needed.
-   */
-  private initializationPromise: Promise<void> | null = null;
 
   /**
    * Settings for autonomy and new API methods (from next branch)
@@ -83,6 +86,7 @@ export class MoltbookService extends Service {
   private autonomyRunning = false;
   private autonomyStepCount = 0;
   private autonomyTimeout: ReturnType<typeof setTimeout> | null = null;
+  private initializationPromise: Promise<void> | null = null;
   private memory: string[] = [];
 
   constructor(protected runtime: IAgentRuntime) {
@@ -111,7 +115,7 @@ export class MoltbookService extends Service {
   static async stop(runtime: IAgentRuntime): Promise<void> {
     const service = runtime.getService(MoltbookService.serviceType);
     if (!service) {
-      throw new Error('Moltbook service not found');
+      throw new Error("Moltbook service not found");
     }
     await service.stop();
   }
@@ -135,11 +139,11 @@ export class MoltbookService extends Service {
    */
   async start(): Promise<void> {
     if (this.isRunning) {
-      this.runtime.logger.warn('Moltbook service is already running');
+      this.runtime.logger.warn("Moltbook service is already running");
       return;
     }
 
-    this.runtime.logger.info('Starting Moltbook service...');
+    this.runtime.logger.info("Starting Moltbook service...");
     this.isRunning = true;
 
     // CRITICAL: Return immediately - do NOT await anything!
@@ -167,7 +171,7 @@ export class MoltbookService extends Service {
       // This catch handles any errors that slip through the inner try-catch
       this.runtime.logger.error(
         { error: error instanceof Error ? error.message : String(error) },
-        'Unhandled error during Moltbook initialization'
+        "Unhandled error during Moltbook initialization"
       );
     });
   }
@@ -191,22 +195,22 @@ export class MoltbookService extends Service {
       // WHY? The runtime may still be initializing DB, loading other plugins, etc.
       // Operations that need DB or other services would fail without this.
       await this.runtime.initPromise;
-      this.runtime.logger.debug('Runtime init complete, continuing Moltbook initialization');
+      this.runtime.logger.debug("Runtime init complete, continuing Moltbook initialization");
 
       // Initialize settings for new API methods from next branch
-      const { getMoltbookSettings } = await import('./environment');
+      const { getMoltbookSettings } = await import("./environment");
       this.settings = getMoltbookSettings(this.runtime);
 
       // Start autonomy loop if enabled
       if (this.settings.autonomousMode) {
-        this.runtime.logger.info('Autonomy mode enabled, starting autonomy loop');
+        this.runtime.logger.info("Autonomy mode enabled, starting autonomy loop");
         this.startAutonomyLoop();
       }
 
       // Step 2: Ensure we have valid credentials
       // WHY before task service? Authentication doesn't need the task service,
       // and we want credentials ready ASAP for any API calls.
-      const autoRegister = this.runtime.getSetting('MOLTBOOK_AUTO_REGISTER') !== 'false';
+      const autoRegister = this.runtime.getSetting("MOLTBOOK_AUTO_REGISTER") !== "false";
       if (autoRegister) {
         await this.ensureAuthenticated();
       }
@@ -215,13 +219,13 @@ export class MoltbookService extends Service {
       // WHY explicit wait? Calling registerTaskWorker or createTask before
       // the task service is ready would fail silently or error.
       try {
-        this.runtime.logger.debug('Waiting for task service...');
-        await this.runtime.getServiceLoadPromise('task');
-        this.runtime.logger.debug('Task service ready');
+        this.runtime.logger.debug("Waiting for task service...");
+        await this.runtime.getServiceLoadPromise("task");
+        this.runtime.logger.debug("Task service ready");
 
         // Register our task worker - tells runtime how to execute MOLTBOOK_CYCLE tasks
         this.runtime.registerTaskWorker(moltbookCycleWorker);
-        this.runtime.logger.debug('Registered MOLTBOOK_CYCLE task worker');
+        this.runtime.logger.debug("Registered MOLTBOOK_CYCLE task worker");
 
         // Create the periodic task (if it doesn't already exist)
         await this.setupCycleTask();
@@ -231,15 +235,15 @@ export class MoltbookService extends Service {
         // Core features (posting, voting) still work without background tasks.
         this.runtime.logger.warn(
           { error: taskError instanceof Error ? taskError.message : String(taskError) },
-          'Task service not available, cycle task will not be enabled'
+          "Task service not available, cycle task will not be enabled"
         );
       }
 
-      this.runtime.logger.info('Moltbook service initialization completed');
+      this.runtime.logger.info("Moltbook service initialization completed");
     } catch (error) {
       this.runtime.logger.error(
         { error: error instanceof Error ? error.message : String(error) },
-        'Error during Moltbook service initialization'
+        "Error during Moltbook service initialization"
       );
       // Re-throw so the outer .catch() can handle cleanup if needed
       throw error;
@@ -258,7 +262,7 @@ export class MoltbookService extends Service {
       if (agentTasks.length > 0) {
         this.runtime.logger.debug(
           { taskCount: agentTasks.length },
-          'Moltbook cycle task already exists'
+          "Moltbook cycle task already exists"
         );
         return;
       }
@@ -266,38 +270,38 @@ export class MoltbookService extends Service {
       // Create the periodic task
       await this.runtime.createTask({
         name: MOLTBOOK_CYCLE_TASK,
-        description: 'Periodic Moltbook community engagement cycle',
+        description: "Periodic Moltbook community engagement cycle",
         worldId: this.runtime.agentId,
         metadata: {
           createdAt: Date.now() as any,
           updatedAt: Date.now() as any,
           updateInterval: CYCLE_INTERVAL_MS as any,
         },
-        tags: ['queue', 'repeat', 'moltbook'],
+        tags: ["queue", "repeat", "moltbook"],
       });
 
       this.runtime.logger.info(
         { intervalMinutes: CYCLE_INTERVAL_MS / 60000 },
-        'Created Moltbook cycle task'
+        "Created Moltbook cycle task"
       );
     } catch (error) {
-      this.runtime.logger.error({ error }, 'Error setting up Moltbook cycle task');
+      this.runtime.logger.error({ error }, "Error setting up Moltbook cycle task");
     }
   }
 
   async stop(): Promise<void> {
     if (!this.isRunning) {
-      this.runtime.logger.warn('Moltbook service is not running');
+      this.runtime.logger.warn("Moltbook service is not running");
       return;
     }
 
-    this.runtime.logger.info('Stopping Moltbook service...');
-    
+    this.runtime.logger.info("Stopping Moltbook service...");
+
     // Stop autonomy loop if running
     this.stopAutonomyLoop();
-    
+
     this.isRunning = false;
-    this.runtime.logger.info('Moltbook service stopped');
+    this.runtime.logger.info("Moltbook service stopped");
   }
 
   // ===========================================================================
@@ -309,18 +313,22 @@ export class MoltbookService extends Service {
    * Priority: 1) MOLTBOOK_API_KEY env var, 2) stored credentials, 3) auto-register
    */
   async ensureAuthenticated(): Promise<MoltbookCredentials | null> {
-    this.runtime.logger.debug('Moltbook: Checking authentication');
+    this.runtime.logger.debug("Moltbook: Checking authentication");
 
     // 1. Check for pre-configured API key (user already has an account)
-    const envApiKey = this.runtime.getSetting('MOLTBOOK_API_KEY');
-    if (envApiKey && typeof envApiKey === 'string') {
-      this.runtime.logger.debug('Moltbook: Found API key in settings, validating...');
+    const envApiKey = this.runtime.getSetting("MOLTBOOK_API_KEY");
+    if (envApiKey && typeof envApiKey === "string") {
+      this.runtime.logger.debug("Moltbook: Found API key in settings, validating...");
 
-      const validation = await api.validateKey(String(this.runtime.agentId), envApiKey, this.runtime.logger);
+      const validation = await api.validateKey(
+        String(this.runtime.agentId),
+        envApiKey,
+        this.runtime.logger
+      );
       if (validation.success && validation.data?.valid) {
         this.runtime.logger.info(
           { username: validation.data.name, isClaimed: validation.data.isClaimed },
-          'Moltbook: API key from settings is valid'
+          "Moltbook: API key from settings is valid"
         );
 
         const creds: MoltbookCredentials = {
@@ -328,7 +336,7 @@ export class MoltbookService extends Service {
           userId: validation.data.name,
           username: validation.data.name,
           registeredAt: Date.now(),
-          claimStatus: validation.data.isClaimed ? 'claimed' : 'unclaimed',
+          claimStatus: validation.data.isClaimed ? "claimed" : "unclaimed",
         };
 
         await this.saveCredentials(creds);
@@ -337,7 +345,7 @@ export class MoltbookService extends Service {
 
       this.runtime.logger.warn(
         { error: validation.error },
-        'Moltbook: API key from settings is invalid'
+        "Moltbook: API key from settings is invalid"
       );
     }
 
@@ -347,20 +355,24 @@ export class MoltbookService extends Service {
     if (creds) {
       this.runtime.logger.debug(
         { username: creds.username },
-        'Moltbook: Found stored credentials, validating...'
+        "Moltbook: Found stored credentials, validating..."
       );
 
       // Validate the stored credentials via /agents/me
-      const validation = await api.validateKey(this.runtime.agentId, creds.apiKey, this.runtime.logger);
+      const validation = await api.validateKey(
+        this.runtime.agentId,
+        creds.apiKey,
+        this.runtime.logger
+      );
 
       if (validation.success && validation.data?.valid) {
         this.runtime.logger.info(
           { username: validation.data.name, isClaimed: validation.data.isClaimed },
-          'Moltbook: Credentials valid'
+          "Moltbook: Credentials valid"
         );
 
         // Update claim status
-        creds.claimStatus = validation.data.isClaimed ? 'claimed' : 'unclaimed';
+        creds.claimStatus = validation.data.isClaimed ? "claimed" : "unclaimed";
         await this.saveCredentials(creds);
 
         return creds;
@@ -368,18 +380,18 @@ export class MoltbookService extends Service {
 
       // Check if it's a 401 "not yet claimed" - this is NOT invalid credentials!
       // The API key is valid, but the human hasn't claimed the agent yet
-      if (validation.status === 401 && validation.error?.includes('not yet claimed')) {
+      if (validation.status === 401 && validation.error?.includes("not yet claimed")) {
         // Extract claim URL from error hint
         const claimMatch = validation.error.match(/https:\/\/moltbook\.com\/claim\/[^\s"]+/);
         const claimUrl = claimMatch ? claimMatch[0] : creds.claimUrl;
 
         this.runtime.logger.info(
           { username: creds.username, claimUrl },
-          'Moltbook: Agent registered but not yet claimed - credentials are still valid'
+          "Moltbook: Agent registered but not yet claimed - credentials are still valid"
         );
 
         // Update credentials with claim status and URL
-        creds.claimStatus = 'unclaimed';
+        creds.claimStatus = "unclaimed";
         if (claimUrl) {
           creds.claimUrl = claimUrl;
         }
@@ -387,7 +399,7 @@ export class MoltbookService extends Service {
 
         // Log prominent banner for claim
         if (claimUrl) {
-          this.logClaimBanner(creds.username, claimUrl, 'Already registered');
+          this.logClaimBanner(creds.username, claimUrl, "Already registered");
         }
 
         return creds;
@@ -396,17 +408,19 @@ export class MoltbookService extends Service {
       // Credentials truly invalid (not just unclaimed), clear them
       this.runtime.logger.warn(
         { error: validation.error, status: validation.status },
-        'Moltbook: Stored credentials are invalid, will re-register'
+        "Moltbook: Stored credentials are invalid, will re-register"
       );
       creds = null;
     } else {
-      this.runtime.logger.debug('Moltbook: No stored credentials found');
+      this.runtime.logger.debug("Moltbook: No stored credentials found");
     }
 
     // 3. Register a new account
-    const autoRegister = this.runtime.getSetting('MOLTBOOK_AUTO_REGISTER') !== 'false';
+    const autoRegister = this.runtime.getSetting("MOLTBOOK_AUTO_REGISTER") !== "false";
     if (!autoRegister) {
-      this.runtime.logger.info('Moltbook: MOLTBOOK_AUTO_REGISTER is disabled, skipping registration');
+      this.runtime.logger.info(
+        "Moltbook: MOLTBOOK_AUTO_REGISTER is disabled, skipping registration"
+      );
       return null;
     }
 
@@ -422,7 +436,7 @@ export class MoltbookService extends Service {
    * Will retry with a unique suffix if name is taken (409 Conflict)
    */
   private async registerNewAccount(): Promise<MoltbookCredentials | null> {
-    const characterName = this.runtime.character.name || 'ElizaAgent';
+    const characterName = this.runtime.character.name || "ElizaAgent";
 
     // Sanitize name for Moltbook API requirements
     // WHY all this complexity? Character names can contain:
@@ -438,7 +452,7 @@ export class MoltbookService extends Service {
     // Build description from character bio
     const bio = this.runtime.character.bio;
     const description = bio
-      ? (Array.isArray(bio) ? bio.join(' ') : bio).slice(0, 200)
+      ? (Array.isArray(bio) ? bio.join(" ") : bio).slice(0, 200)
       : `An elizaOS agent named ${characterName}`;
 
     // Try up to 3 times with different suffixes
@@ -446,7 +460,7 @@ export class MoltbookService extends Service {
 
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       // First attempt uses the name as-is, subsequent attempts add suffix
-      const suffix = attempt === 0 ? '' : `_${Math.random().toString(36).slice(2, 6)}`;
+      const suffix = attempt === 0 ? "" : `_${Math.random().toString(36).slice(2, 6)}`;
       const agentName = `${baseName}${suffix}`;
 
       this.runtime.logger.info(
@@ -455,10 +469,15 @@ export class MoltbookService extends Service {
           attempt: attempt + 1,
           maxAttempts,
         },
-        'Moltbook: Attempting to register new agent'
+        "Moltbook: Attempting to register new agent"
       );
 
-      const result = await api.register(this.runtime.agentId, agentName, description, this.runtime.logger);
+      const result = await api.register(
+        this.runtime.agentId,
+        agentName,
+        description,
+        this.runtime.logger
+      );
 
       if (result.success && result.data) {
         const creds: MoltbookCredentials = {
@@ -466,7 +485,7 @@ export class MoltbookService extends Service {
           userId: agentName,
           username: agentName,
           registeredAt: Date.now(),
-          claimStatus: 'unclaimed',
+          claimStatus: "unclaimed",
           claimUrl: result.data.claimUrl,
         };
 
@@ -482,7 +501,7 @@ export class MoltbookService extends Service {
       if (result.status === 409) {
         this.runtime.logger.warn(
           { agentName, attempt: attempt + 1 },
-          'Moltbook: Name already taken, will try with suffix'
+          "Moltbook: Name already taken, will try with suffix"
         );
         continue;
       }
@@ -494,14 +513,14 @@ export class MoltbookService extends Service {
           status: result.status,
           agentName,
         },
-        'Moltbook: Failed to register agent'
+        "Moltbook: Failed to register agent"
       );
       return null;
     }
 
     this.runtime.logger.error(
       { baseName, attempts: maxAttempts },
-      'Moltbook: Failed to register after multiple attempts. Set MOLTBOOK_API_KEY if you already have an account.'
+      "Moltbook: Failed to register after multiple attempts. Set MOLTBOOK_API_KEY if you already have an account."
     );
     return null;
   }
@@ -527,34 +546,34 @@ export class MoltbookService extends Service {
     // Step 1: Normalize Unicode to ASCII equivalents
     // NFKD decomposition converts fancy Unicode to base characters
     // e.g., 𝚎 → e, 𝕖 → e, ᴇ → E
-    let normalized = name.normalize('NFKD');
+    let normalized = name.normalize("NFKD");
 
     // Step 2: Remove diacritical marks (accents, etc.)
     // After NFKD, accented chars become base char + combining mark
     // e.g., é → e + ́ (combining acute accent)
     // This regex removes the combining marks
-    normalized = normalized.replace(/[\u0300-\u036f]/g, '');
+    normalized = normalized.replace(/[\u0300-\u036f]/g, "");
 
     // Step 3: Replace spaces and dots with underscores
-    let sanitized = normalized.replace(/[\s.]+/g, '_');
+    let sanitized = normalized.replace(/[\s.]+/g, "_");
 
     // Step 4: Remove any remaining non-alphanumeric chars (except _ and -)
-    sanitized = sanitized.replace(/[^a-zA-Z0-9_-]/g, '');
+    sanitized = sanitized.replace(/[^a-zA-Z0-9_-]/g, "");
 
     // Step 5: Clean up underscores
     sanitized = sanitized
-      .replace(/_+/g, '_') // Collapse multiple underscores
-      .replace(/^_|_$/g, ''); // Trim leading/trailing underscores
+      .replace(/_+/g, "_") // Collapse multiple underscores
+      .replace(/^_|_$/g, ""); // Trim leading/trailing underscores
 
     // Step 6: If we ended up with nothing useful, generate a fallback
     // WHY? Some names are entirely emojis or unsupported Unicode
     if (sanitized.length < 2) {
       // Use first 8 chars of agent ID as fallback (deterministic per agent)
-      const agentIdShort = this.runtime.agentId.replace(/-/g, '').slice(0, 8);
+      const agentIdShort = this.runtime.agentId.replace(/-/g, "").slice(0, 8);
       sanitized = `agent_${agentIdShort}`;
       this.runtime.logger.warn(
         { originalName: name, fallbackName: sanitized },
-        'Moltbook: Character name could not be sanitized, using fallback'
+        "Moltbook: Character name could not be sanitized, using fallback"
       );
     }
 
@@ -590,7 +609,7 @@ export class MoltbookService extends Service {
     // Also log structured data for programmatic access
     this.runtime.logger.info(
       { agentName, claimUrl, verificationCode },
-      'Moltbook registration complete - claim URL above'
+      "Moltbook registration complete - claim URL above"
     );
   }
 
@@ -613,7 +632,7 @@ export class MoltbookService extends Service {
 
       return null;
     } catch (error) {
-      this.runtime.logger.error({ error }, 'Error loading Moltbook credentials');
+      this.runtime.logger.error({ error }, "Error loading Moltbook credentials");
       return null;
     }
   }
@@ -633,7 +652,7 @@ export class MoltbookService extends Service {
         await this.runtime.updateMemory({
           id: credId,
           metadata: {
-            type: 'moltbook_credentials',
+            type: "moltbook_credentials",
             credentials: creds,
           } as any,
         });
@@ -649,7 +668,7 @@ export class MoltbookService extends Service {
           },
           createdAt: Date.now(),
           metadata: {
-            type: 'moltbook_credentials',
+            type: "moltbook_credentials",
             credentials: creds,
           } as any,
         };
@@ -661,9 +680,9 @@ export class MoltbookService extends Service {
       const state = getAgentState(this.runtime.agentId);
       state.credentials = creds;
 
-      this.runtime.logger.debug('Moltbook credentials saved');
+      this.runtime.logger.debug("Moltbook credentials saved");
     } catch (error) {
-      this.runtime.logger.error({ error }, 'Error saving Moltbook credentials');
+      this.runtime.logger.error({ error }, "Error saving Moltbook credentials");
       throw error;
     }
   }
@@ -692,13 +711,13 @@ export class MoltbookService extends Service {
    */
   async getFeed(
     options: CacheOptions & {
-      sort?: 'hot' | 'new' | 'top' | 'rising';
+      sort?: "hot" | "new" | "top" | "rising";
       limit?: number;
     } = {}
   ): Promise<MoltbookFeed | null> {
     const creds = await this.getCredentials();
     if (!creds) {
-      this.runtime.logger.warn('Cannot get feed: not authenticated');
+      this.runtime.logger.warn("Cannot get feed: not authenticated");
       return null;
     }
 
@@ -731,7 +750,7 @@ export class MoltbookService extends Service {
       return result.data;
     }
 
-    this.runtime.logger.error({ error: result.error }, 'Failed to get feed');
+    this.runtime.logger.error({ error: result.error }, "Failed to get feed");
     return state.feedCache?.data ?? null;
   }
 
@@ -741,14 +760,14 @@ export class MoltbookService extends Service {
    */
   async getPosts(
     options: CacheOptions & {
-      sort?: 'hot' | 'new' | 'top' | 'rising';
+      sort?: "hot" | "new" | "top" | "rising";
       submolt?: string;
       limit?: number;
     } = {}
   ): Promise<MoltbookFeed | null> {
     const creds = await this.getCredentials();
     if (!creds) {
-      this.runtime.logger.warn('Cannot get posts: not authenticated');
+      this.runtime.logger.warn("Cannot get posts: not authenticated");
       return null;
     }
 
@@ -766,13 +785,13 @@ export class MoltbookService extends Service {
         {
           runtime: this.runtime,
           source: "moltbook",
-        } as EventPayload,
+        } as EventPayload
       );
-      
+
       return result.data;
     }
 
-    this.runtime.logger.error({ error: result.error }, 'Failed to get posts');
+    this.runtime.logger.error({ error: result.error }, "Failed to get posts");
     return null;
   }
 
@@ -787,25 +806,34 @@ export class MoltbookService extends Service {
   async createPost(title: string, content: string, submolt?: string): Promise<MoltbookPost | null> {
     const creds = await this.getCredentials();
     if (!creds) {
-      this.runtime.logger.warn('Cannot create post: not authenticated');
+      this.runtime.logger.warn("Cannot create post: not authenticated");
       return null;
     }
 
     // Content validation (from next branch)
     if (title.length > CONTENT_LIMITS.maxTitleLength) {
-      this.runtime.logger.error(`Title exceeds maximum length of ${CONTENT_LIMITS.maxTitleLength} characters`);
+      this.runtime.logger.error(
+        `Title exceeds maximum length of ${CONTENT_LIMITS.maxTitleLength} characters`
+      );
       return null;
     }
     if (content.length > CONTENT_LIMITS.maxContentLength) {
-      this.runtime.logger.error(`Content exceeds maximum length of ${CONTENT_LIMITS.maxContentLength} characters`);
+      this.runtime.logger.error(
+        `Content exceeds maximum length of ${CONTENT_LIMITS.maxContentLength} characters`
+      );
       return null;
     }
 
-    const result = await api.createPost(this.runtime.agentId, creds.apiKey, {
-      title,
-      content,
-      submolt,
-    }, this.runtime.logger);
+    const result = await api.createPost(
+      this.runtime.agentId,
+      creds.apiKey,
+      {
+        title,
+        content,
+        submolt,
+      },
+      this.runtime.logger
+    );
 
     if (result.success && result.data) {
       // Emit event (from next branch)
@@ -814,14 +842,14 @@ export class MoltbookService extends Service {
         {
           runtime: this.runtime,
           source: "moltbook",
-        } as EventPayload,
+        } as EventPayload
       );
-      
-      this.runtime.logger.info({ postId: result.data.id, title }, 'Created Moltbook post');
+
+      this.runtime.logger.info({ postId: result.data.id, title }, "Created Moltbook post");
       return result.data;
     }
 
-    this.runtime.logger.error({ error: result.error }, 'Failed to create post');
+    this.runtime.logger.error({ error: result.error }, "Failed to create post");
     return null;
   }
 
@@ -832,8 +860,13 @@ export class MoltbookService extends Service {
     const creds = await this.getCredentials();
     if (!creds) return null;
 
-    const result = await api.getPost(this.runtime.agentId, creds.apiKey, postId, this.runtime.logger);
-    
+    const result = await api.getPost(
+      this.runtime.agentId,
+      creds.apiKey,
+      postId,
+      this.runtime.logger
+    );
+
     if (result.success && result.data) {
       // Emit event (from next branch)
       this.runtime.emitEvent(
@@ -841,10 +874,10 @@ export class MoltbookService extends Service {
         {
           runtime: this.runtime,
           source: "moltbook",
-        } as EventPayload,
+        } as EventPayload
       );
     }
-    
+
     return result.success ? (result.data ?? null) : null;
   }
 
@@ -856,10 +889,15 @@ export class MoltbookService extends Service {
     const creds = await this.getCredentials();
     if (!creds) return false;
 
-    const result = await api.deletePost(this.runtime.agentId, creds.apiKey, postId, this.runtime.logger);
+    const result = await api.deletePost(
+      this.runtime.agentId,
+      creds.apiKey,
+      postId,
+      this.runtime.logger
+    );
 
     if (result.success) {
-      this.runtime.logger.info({ postId }, 'Deleted Moltbook post');
+      this.runtime.logger.info({ postId }, "Deleted Moltbook post");
     }
 
     return result.success;
@@ -879,20 +917,28 @@ export class MoltbookService extends Service {
   ): Promise<MoltbookComment | null> {
     const creds = await this.getCredentials();
     if (!creds) {
-      this.runtime.logger.warn('Cannot create comment: not authenticated');
+      this.runtime.logger.warn("Cannot create comment: not authenticated");
       return null;
     }
 
     // Content validation (from next branch)
     if (content.length > CONTENT_LIMITS.maxCommentLength) {
-      this.runtime.logger.error(`Comment exceeds maximum length of ${CONTENT_LIMITS.maxCommentLength} characters`);
+      this.runtime.logger.error(
+        `Comment exceeds maximum length of ${CONTENT_LIMITS.maxCommentLength} characters`
+      );
       return null;
     }
 
-    const result = await api.createComment(this.runtime.agentId, creds.apiKey, postId, {
-      content,
-      parentId,
-    }, this.runtime.logger);
+    const result = await api.createComment(
+      this.runtime.agentId,
+      creds.apiKey,
+      postId,
+      {
+        content,
+        parentId,
+      },
+      this.runtime.logger
+    );
 
     if (result.success && result.data) {
       // Emit event (from next branch)
@@ -901,14 +947,14 @@ export class MoltbookService extends Service {
         {
           runtime: this.runtime,
           source: "moltbook",
-        } as EventPayload,
+        } as EventPayload
       );
-      
-      this.runtime.logger.info({ postId, commentId: result.data.id }, 'Created Moltbook comment');
+
+      this.runtime.logger.info({ postId, commentId: result.data.id }, "Created Moltbook comment");
       return result.data;
     }
 
-    this.runtime.logger.error({ error: result.error }, 'Failed to create comment');
+    this.runtime.logger.error({ error: result.error }, "Failed to create comment");
     return null;
   }
 
@@ -919,7 +965,12 @@ export class MoltbookService extends Service {
     const creds = await this.getCredentials();
     if (!creds) return [];
 
-    const result = await api.getComments(this.runtime.agentId, creds.apiKey, postId, this.runtime.logger);
+    const result = await api.getComments(
+      this.runtime.agentId,
+      creds.apiKey,
+      postId,
+      this.runtime.logger
+    );
     return result.success ? (result.data ?? []) : [];
   }
 
@@ -934,7 +985,7 @@ export class MoltbookService extends Service {
    * Vote on a post (upvote or downvote)
    * Note: Moltbook API has separate endpoints for upvote/downvote, no "none" option
    */
-  async votePost(postId: string, direction: 'up' | 'down'): Promise<boolean> {
+  async votePost(postId: string, direction: "up" | "down"): Promise<boolean> {
     const creds = await this.getCredentials();
     if (!creds) return false;
 
@@ -947,7 +998,7 @@ export class MoltbookService extends Service {
     );
 
     if (result.success) {
-      this.runtime.logger.debug({ postId, direction }, 'Voted on post');
+      this.runtime.logger.debug({ postId, direction }, "Voted on post");
     }
 
     return result.success;
@@ -956,7 +1007,7 @@ export class MoltbookService extends Service {
   /**
    * Vote on a comment (upvote or downvote)
    */
-  async voteComment(commentId: string, direction: 'up' | 'down'): Promise<boolean> {
+  async voteComment(commentId: string, direction: "up" | "down"): Promise<boolean> {
     const creds = await this.getCredentials();
     if (!creds) return false;
 
@@ -990,7 +1041,7 @@ export class MoltbookService extends Service {
     );
 
     if (result.success) {
-      this.runtime.logger.debug({ moltyName }, 'Followed molty');
+      this.runtime.logger.debug({ moltyName }, "Followed molty");
     }
 
     return result.success;
@@ -1072,7 +1123,7 @@ export class MoltbookService extends Service {
   /**
    * Get list of all submolts
    */
-  async getSubmolts(sort?: string): Promise<MoltbookSubmolt[] | null> {
+  async getSubmolts(_sort?: string): Promise<MoltbookSubmolt[] | null> {
     const creds = await this.getCredentials();
     if (!creds) return null;
 
@@ -1089,7 +1140,12 @@ export class MoltbookService extends Service {
     const creds = await this.getCredentials();
     if (!creds) return null;
 
-    const result = await api.getSubmolt(this.runtime.agentId, creds.apiKey, name, this.runtime.logger);
+    const result = await api.getSubmolt(
+      this.runtime.agentId,
+      creds.apiKey,
+      name,
+      this.runtime.logger
+    );
     return result.success ? (result.data ?? null) : null;
   }
 
@@ -1109,7 +1165,7 @@ export class MoltbookService extends Service {
     );
 
     if (result.success) {
-      this.runtime.logger.info({ submoltName }, 'Subscribed to submolt');
+      this.runtime.logger.info({ submoltName }, "Subscribed to submolt");
     }
 
     return result.success;
@@ -1131,7 +1187,7 @@ export class MoltbookService extends Service {
     );
 
     if (result.success) {
-      this.runtime.logger.info({ submoltName }, 'Unsubscribed from submolt');
+      this.runtime.logger.info({ submoltName }, "Unsubscribed from submolt");
     }
 
     return result.success;
@@ -1147,17 +1203,15 @@ export class MoltbookService extends Service {
    */
   async search(
     query: string,
-    options: { type?: 'posts' | 'comments' | 'all'; limit?: number } = {}
+    options: { type?: "posts" | "comments" | "all"; limit?: number } = {}
   ): Promise<MoltbookSearchResults | null> {
     const creds = await this.getCredentials();
     if (!creds) return null;
 
-    const result = await api.search(
-      this.runtime.agentId,
-      creds.apiKey,
-      query,
-      { ...options, logger: this.runtime.logger }
-    );
+    const result = await api.search(this.runtime.agentId, creds.apiKey, query, {
+      ...options,
+      logger: this.runtime.logger,
+    });
 
     return result.success ? (result.data ?? null) : null;
   }
@@ -1179,7 +1233,7 @@ export class MoltbookService extends Service {
   } {
     const state = getAgentState(this.runtime.agentId);
     const creds = state.credentials;
-    const isClaimed = creds?.claimStatus === 'claimed';
+    const isClaimed = creds?.claimStatus === "claimed";
 
     return {
       running: this.isRunning,
@@ -1207,7 +1261,7 @@ export class MoltbookService extends Service {
     if (!creds) return false;
 
     // Must be claimed to engage
-    return creds.claimStatus === 'claimed';
+    return creds.claimStatus === "claimed";
   }
 
   /**
@@ -1217,12 +1271,12 @@ export class MoltbookService extends Service {
     const creds = await this.getCredentials();
     if (!creds) return false;
 
-    if (creds.claimStatus === 'unclaimed') {
+    if (creds.claimStatus === "unclaimed") {
       // Log a reminder with the claim URL
       if (creds.claimUrl) {
         this.runtime.logger.info(
           { username: creds.username, claimUrl: creds.claimUrl },
-          'Moltbook: Account not yet claimed - cannot post/comment/vote until human claims it'
+          "Moltbook: Account not yet claimed - cannot post/comment/vote until human claims it"
         );
       }
       return false;
@@ -1243,7 +1297,7 @@ export class MoltbookService extends Service {
     if (!creds) return false;
 
     // Already claimed, no need to check
-    if (creds.claimStatus === 'claimed') return true;
+    if (creds.claimStatus === "claimed") return true;
 
     // Check with API
     const validation = await api.validateKey(
@@ -1254,12 +1308,12 @@ export class MoltbookService extends Service {
 
     if (validation.success && validation.data?.isClaimed) {
       // Status changed! Update credentials
-      creds.claimStatus = 'claimed';
+      creds.claimStatus = "claimed";
       await this.saveCredentials(creds);
 
       this.runtime.logger.info(
         { username: creds.username },
-        'Moltbook: Account has been claimed! Agent can now engage.'
+        "Moltbook: Account has been claimed! Agent can now engage."
       );
       return true;
     }
@@ -1277,13 +1331,6 @@ export class MoltbookService extends Service {
   // ===========================================================================
   // NEW METHODS FROM NEXT BRANCH - Enhanced functionality
   // ===========================================================================
-
-
-
-
-
-
-
 
   /**
    * Check if autonomy is running
@@ -1309,7 +1356,7 @@ export class MoltbookService extends Service {
       {
         runtime: this.runtime,
         source: "moltbook",
-      } as EventPayload,
+      } as EventPayload
     );
 
     this.runtime.logger.info("Moltbook autonomy loop started");
@@ -1333,21 +1380,11 @@ export class MoltbookService extends Service {
       {
         runtime: this.runtime,
         source: "moltbook",
-      } as EventPayload,
+      } as EventPayload
     );
 
     this.runtime.logger.info("Moltbook autonomy loop stopped");
   }
-
-  /**
-   * Structured action types for autonomy loop
-   */
-  private readonly AUTONOMY_ACTIONS = {
-    POST: "POST",
-    COMMENT: "COMMENT",
-    BROWSE: "BROWSE",
-    WAIT: "WAIT",
-  } as const;
 
   /**
    * Execute one autonomy step - simplified version for now
@@ -1361,9 +1398,7 @@ export class MoltbookService extends Service {
       this.settings?.autonomyMaxSteps &&
       this.autonomyStepCount >= this.settings.autonomyMaxSteps
     ) {
-      this.runtime.logger.info(
-        `Reached max autonomy steps (${this.settings.autonomyMaxSteps})`,
-      );
+      this.runtime.logger.info(`Reached max autonomy steps (${this.settings.autonomyMaxSteps})`);
       this.stopAutonomyLoop();
       return;
     }
@@ -1372,11 +1407,11 @@ export class MoltbookService extends Service {
 
     try {
       // Browse recent posts for context (inlined wrapper)
-      const feed = await this.getPosts({ sort: 'hot', limit: 10 });
+      const feed = await this.getPosts({ sort: "hot", limit: 10 });
 
       if (feed && feed.posts.length > 0) {
         this.runtime.logger.info(
-          `Autonomy step ${this.autonomyStepCount}: Found ${feed.posts.length} posts`,
+          `Autonomy step ${this.autonomyStepCount}: Found ${feed.posts.length} posts`
         );
         // Store in memory for future reference
         this.memory.push(`Found ${feed.posts.length} posts at ${new Date().toISOString()}`);
@@ -1391,7 +1426,7 @@ export class MoltbookService extends Service {
         {
           runtime: this.runtime,
           source: "moltbook",
-        } as EventPayload,
+        } as EventPayload
       );
 
       // Schedule next step

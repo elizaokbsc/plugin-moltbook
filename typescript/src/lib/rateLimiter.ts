@@ -15,17 +15,17 @@
  * when running many agents from the same machine.
  */
 
-import type { UUID } from '@elizaos/core';
-import type { RateLimitState, AgentMoltbookState } from '../types';
+import type { UUID } from "@elizaos/core";
 import {
-  RATE_LIMIT_REQUESTS_PER_MIN,
-  RATE_LIMIT_POST_INTERVAL_SEC,
-  RATE_LIMIT_COMMENTS_PER_HOUR,
-  RATE_LIMIT_REQUEST_WINDOW_MS,
-  RATE_LIMIT_COMMENT_WINDOW_MS,
-  GLOBAL_REQUESTS_PER_MIN,
   GLOBAL_POSTS_PER_HOUR,
-} from '../constants';
+  GLOBAL_REQUESTS_PER_MIN,
+  RATE_LIMIT_COMMENT_WINDOW_MS,
+  RATE_LIMIT_COMMENTS_PER_HOUR,
+  RATE_LIMIT_POST_INTERVAL_SEC,
+  RATE_LIMIT_REQUEST_WINDOW_MS,
+  RATE_LIMIT_REQUESTS_PER_MIN,
+} from "../constants";
+import type { AgentMoltbookState } from "../types";
 
 // =============================================================================
 // GLOBAL RATE LIMITING (IP-level protection)

@@ -21,22 +21,14 @@
  * 5. Engagement decision (action)
  */
 
-import type { IAgentRuntime, TaskWorker } from '@elizaos/core';
-import { MoltbookService } from '../service';
-import { analyzeCommunity, isAnalysisFresh } from '../lib/intelligence';
-import { composePost, composeComment } from '../lib/compose';
-import { PLUGIN_NAME, MOLTBOOK_CYCLE_TASK, MIN_AUTONOMOUS_POST_INTERVAL_MS } from '../constants';
-import type { CommunityContext, EngagementOpportunity, MoltbookPost } from '../types';
-import { getAgentState } from '../lib/rateLimiter';
-import {
-  pollForMentions,
-  processMentions,
-  recordMyPost,
-} from '../lib/mentions';
-import {
-  reflectOnObservations,
-  getLearningsSummary,
-} from '../lib/learning';
+import type { IAgentRuntime, TaskWorker } from "@elizaos/core";
+import { MIN_AUTONOMOUS_POST_INTERVAL_MS, MOLTBOOK_CYCLE_TASK, PLUGIN_NAME } from "../constants";
+import { composeComment, composePost } from "../lib/compose";
+import { analyzeCommunity } from "../lib/intelligence";
+import { reflectOnObservations } from "../lib/learning";
+import { pollForMentions, processMentions, recordMyPost } from "../lib/mentions";
+import type { MoltbookService } from "../service";
+import type { CommunityContext, EngagementOpportunity, MoltbookPost } from "../types";
 
 // Track last autonomous post time per agent
 const lastAutonomousPost = new Map<string, number>();
@@ -65,18 +57,18 @@ export const moltbookCycleWorker: TaskWorker = {
   execute: async (runtime: IAgentRuntime): Promise<void> => {
     const service = runtime.getService<MoltbookService>(PLUGIN_NAME);
     if (!service) {
-      runtime.logger.debug('Moltbook service not available, skipping cycle');
+      runtime.logger.debug("Moltbook service not available, skipping cycle");
       return;
     }
 
     // Check if authenticated
     const creds = await service.getCredentials();
     if (!creds) {
-      runtime.logger.debug('Moltbook not authenticated, skipping cycle');
+      runtime.logger.debug("Moltbook not authenticated, skipping cycle");
       return;
     }
 
-    runtime.logger.debug('Running Moltbook cycle');
+    runtime.logger.debug("Running Moltbook cycle");
 
     try {
       // =======================================================================
@@ -93,7 +85,7 @@ export const moltbookCycleWorker: TaskWorker = {
           // Still unclaimed - can observe but not engage
           runtime.logger.debug(
             { claimUrl: status.claimUrl },
-            'Moltbook: Account not claimed yet - observing only'
+            "Moltbook: Account not claimed yet - observing only"
           );
 
           // Still fetch feed for observation/learning (read-only is allowed)
@@ -103,13 +95,13 @@ export const moltbookCycleWorker: TaskWorker = {
           if (status.claimUrl) {
             runtime.logger.info(
               { claimUrl: status.claimUrl },
-              'Moltbook: Waiting for human to claim account before engaging'
+              "Moltbook: Waiting for human to claim account before engaging"
             );
           }
           return;
         }
         // If we get here, account was just claimed! Continue to engagement
-        runtime.logger.info('Moltbook: Account claimed! Starting engagement.');
+        runtime.logger.info("Moltbook: Account claimed! Starting engagement.");
       }
 
       // =======================================================================
@@ -133,21 +125,21 @@ export const moltbookCycleWorker: TaskWorker = {
       // =======================================================================
       // PHASE 5: Engagement - Optionally take action
       // =======================================================================
-      const autoEngage = runtime.getSetting('MOLTBOOK_AUTO_ENGAGE') === 'true';
+      const autoEngage = runtime.getSetting("MOLTBOOK_AUTO_ENGAGE") === "true";
       if (!autoEngage) {
-        runtime.logger.debug('Auto-engage disabled, cycle complete');
+        runtime.logger.debug("Auto-engage disabled, cycle complete");
         return;
       }
 
       const action = await decideAction(runtime, context, service);
       if (!action) {
-        runtime.logger.debug('No action decided for this cycle');
+        runtime.logger.debug("No action decided for this cycle");
         return;
       }
 
       await executeAction(runtime, action, context, service);
     } catch (error) {
-      runtime.logger.error({ error }, 'Error in Moltbook cycle');
+      runtime.logger.error({ error }, "Error in Moltbook cycle");
     }
   },
 };
@@ -169,14 +161,14 @@ async function runObservationPhase(
 ): Promise<{ feed: { posts: MoltbookPost[] } | null; context: CommunityContext | null }> {
   const feed = await service.getFeed({ forceFresh: true });
   if (!feed || feed.posts.length === 0) {
-    runtime.logger.debug('No posts in Moltbook feed');
+    runtime.logger.debug("No posts in Moltbook feed");
     return { feed: null, context: null };
   }
 
   const context = analyzeCommunity(feed, runtime);
   runtime.logger.debug(
     { topics: context.activeTopics.slice(0, 3), vibe: context.vibe },
-    'Moltbook community context updated'
+    "Moltbook community context updated"
   );
 
   return { feed, context };
@@ -190,10 +182,7 @@ async function runObservationPhase(
  * check if anyone has replied to our posts or mentioned us.
  * This enables conversational engagement.
  */
-async function runListeningPhase(
-  runtime: IAgentRuntime,
-  service: MoltbookService
-): Promise<void> {
+async function runListeningPhase(runtime: IAgentRuntime, service: MoltbookService): Promise<void> {
   // Rate limit mention polling to avoid excessive API calls
   const lastPoll = lastMentionPoll.get(runtime.agentId) || 0;
   const timeSinceLastPoll = Date.now() - lastPoll;
@@ -201,7 +190,7 @@ async function runListeningPhase(
   if (timeSinceLastPoll < MENTION_POLL_INTERVAL_MS) {
     runtime.logger.debug(
       { nextPollIn: Math.round((MENTION_POLL_INTERVAL_MS - timeSinceLastPoll) / 1000) },
-      'Moltbook: Skipping mention poll (too soon)'
+      "Moltbook: Skipping mention poll (too soon)"
     );
     return;
   }
@@ -213,7 +202,7 @@ async function runListeningPhase(
     if (mentions.length > 0) {
       runtime.logger.info(
         { count: mentions.length },
-        'Moltbook: Found new mentions/replies to process'
+        "Moltbook: Found new mentions/replies to process"
       );
 
       // Process them through the message handling pipeline
@@ -221,13 +210,13 @@ async function runListeningPhase(
 
       runtime.logger.info(
         { processed, total: mentions.length },
-        'Moltbook: Processed mentions/replies'
+        "Moltbook: Processed mentions/replies"
       );
     }
 
     lastMentionPoll.set(runtime.agentId, Date.now());
   } catch (error) {
-    runtime.logger.warn({ error }, 'Moltbook: Error polling for mentions');
+    runtime.logger.warn({ error }, "Moltbook: Error polling for mentions");
   }
 }
 
@@ -246,9 +235,9 @@ async function runReflectionPhase(
 ): Promise<void> {
   try {
     await reflectOnObservations(runtime, context, feed);
-    runtime.logger.debug('Moltbook: Reflection phase complete');
+    runtime.logger.debug("Moltbook: Reflection phase complete");
   } catch (error) {
-    runtime.logger.warn({ error }, 'Moltbook: Error in reflection phase');
+    runtime.logger.warn({ error }, "Moltbook: Error in reflection phase");
   }
 }
 
@@ -260,11 +249,11 @@ async function runReflectionPhase(
  * Action decision types
  */
 type ActionDecision =
-  | { type: 'post'; topic?: string }
-  | { type: 'comment'; opportunity: EngagementOpportunity }
-  | { type: 'upvote'; post: MoltbookPost }
-  | { type: 'follow'; userId: string }
-  | { type: 'observe' };
+  | { type: "post"; topic?: string }
+  | { type: "comment"; opportunity: EngagementOpportunity }
+  | { type: "upvote"; post: MoltbookPost }
+  | { type: "follow"; userId: string }
+  | { type: "observe" };
 
 /**
  * Decide what action to take this cycle
@@ -279,13 +268,13 @@ async function decideAction(
 
   // Priority 1: High-priority engagement opportunities
   const highPriorityOpps = context.engagementOpportunities.filter(
-    (o) => o.priority >= 8 && o.type === 'comment'
+    (o) => o.priority >= 8 && o.type === "comment"
   );
 
   if (highPriorityOpps.length > 0 && status.rateLimits.canComment) {
     // 60% chance to engage with high-priority opportunity
     if (Math.random() < 0.6) {
-      return { type: 'comment', opportunity: highPriorityOpps[0] };
+      return { type: "comment", opportunity: highPriorityOpps[0] };
     }
   }
 
@@ -298,7 +287,7 @@ async function decideAction(
     if (Math.random() < 0.3) {
       // Pick a topic from active topics or character interests
       const topic = pickTopic(runtime, context);
-      return { type: 'post', topic };
+      return { type: "post", topic };
     }
   }
 
@@ -310,32 +299,32 @@ async function decideAction(
   if (mediumPriorityOpps.length > 0 && status.rateLimits.canComment) {
     // 25% chance to engage
     if (Math.random() < 0.25) {
-      return { type: 'comment', opportunity: mediumPriorityOpps[0] };
+      return { type: "comment", opportunity: mediumPriorityOpps[0] };
     }
   }
 
   // Priority 4: Upvote good content
-  const upvoteOpps = context.engagementOpportunities.filter((o) => o.type === 'upvote');
+  const upvoteOpps = context.engagementOpportunities.filter((o) => o.type === "upvote");
 
   if (upvoteOpps.length > 0 && status.rateLimits.canRequest) {
     // 40% chance to upvote
     if (Math.random() < 0.4) {
-      return { type: 'upvote', post: upvoteOpps[0].post };
+      return { type: "upvote", post: upvoteOpps[0].post };
     }
   }
 
   // Priority 5: Follow interesting users
-  const followOpps = context.engagementOpportunities.filter((o) => o.type === 'follow');
+  const followOpps = context.engagementOpportunities.filter((o) => o.type === "follow");
 
   if (followOpps.length > 0 && status.rateLimits.canRequest) {
     // 20% chance to follow
     if (Math.random() < 0.2) {
-      return { type: 'follow', userId: followOpps[0].post.authorId };
+      return { type: "follow", userId: followOpps[0].post.authorId };
     }
   }
 
   // Default: Just observe
-  return { type: 'observe' };
+  return { type: "observe" };
 }
 
 /**
@@ -367,14 +356,14 @@ async function executeAction(
   service: MoltbookService
 ): Promise<void> {
   switch (action.type) {
-    case 'post': {
-      runtime.logger.info({ topic: action.topic }, 'Composing autonomous Moltbook post');
+    case "post": {
+      runtime.logger.info({ topic: action.topic }, "Composing autonomous Moltbook post");
 
       const composed = await composePost(runtime, context, action.topic, true);
       if (!composed || !composed.qualityScore.pass) {
         runtime.logger.debug(
           { score: composed?.qualityScore.overall },
-          'Autonomous post did not meet quality threshold'
+          "Autonomous post did not meet quality threshold"
         );
         return;
       }
@@ -384,7 +373,7 @@ async function executeAction(
         lastAutonomousPost.set(runtime.agentId, Date.now());
         runtime.logger.info(
           { postId: post.id, title: post.title, score: composed.qualityScore.overall },
-          'Created autonomous Moltbook post'
+          "Created autonomous Moltbook post"
         );
 
         // Record the post so we can monitor for replies
@@ -393,11 +382,11 @@ async function executeAction(
       break;
     }
 
-    case 'comment': {
+    case "comment": {
       const { opportunity } = action;
       runtime.logger.info(
         { postId: opportunity.post.id, reason: opportunity.reason },
-        'Composing autonomous Moltbook comment'
+        "Composing autonomous Moltbook comment"
       );
 
       // Get existing comments for context
@@ -416,7 +405,7 @@ async function executeAction(
       if (!composed || !composed.qualityScore.pass) {
         runtime.logger.debug(
           { score: composed?.qualityScore.overall },
-          'Autonomous comment did not meet quality threshold'
+          "Autonomous comment did not meet quality threshold"
         );
         return;
       }
@@ -429,30 +418,30 @@ async function executeAction(
             commentId: comment.id,
             score: composed.qualityScore.overall,
           },
-          'Created autonomous Moltbook comment'
+          "Created autonomous Moltbook comment"
         );
       }
       break;
     }
 
-    case 'upvote': {
-      const success = await service.votePost(action.post.id, 'up');
+    case "upvote": {
+      const success = await service.votePost(action.post.id, "up");
       if (success) {
-        runtime.logger.debug({ postId: action.post.id }, 'Upvoted Moltbook post');
+        runtime.logger.debug({ postId: action.post.id }, "Upvoted Moltbook post");
       }
       break;
     }
 
-    case 'follow': {
+    case "follow": {
       const success = await service.follow(action.userId);
       if (success) {
-        runtime.logger.debug({ userId: action.userId }, 'Followed Moltbook user');
+        runtime.logger.debug({ userId: action.userId }, "Followed Moltbook user");
       }
       break;
     }
 
-    case 'observe':
-      runtime.logger.debug('Observation cycle - no action taken');
+    case "observe":
+      runtime.logger.debug("Observation cycle - no action taken");
       break;
   }
 }

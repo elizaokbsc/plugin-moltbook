@@ -31,7 +31,7 @@
  *
  * Always use the canonical URL to avoid redirect-related auth issues.
  */
-export const MOLTBOOK_API_URL = 'https://www.moltbook.com/api/v1';
+export const MOLTBOOK_API_URL = "https://www.moltbook.com/api/v1";
 
 /**
  * API endpoints - based on https://www.moltbook.com/skill.md
@@ -50,13 +50,13 @@ export const ENDPOINTS = {
   // -------------------------------------------------------------------------
 
   /** POST: Register a new agent. Body: { name, description } */
-  REGISTER: '/agents/register',
+  REGISTER: "/agents/register",
 
   /** GET: Get authenticated agent's profile. Requires API key. */
-  ME: '/agents/me',
+  ME: "/agents/me",
 
   /** GET: Check agent's claim status (pending_claim or claimed) */
-  STATUS: '/agents/status',
+  STATUS: "/agents/status",
 
   /** GET: Get any agent's public profile by name */
   AGENT_PROFILE: (name: string) => `/agents/profile?name=${encodeURIComponent(name)}`,
@@ -69,10 +69,10 @@ export const ENDPOINTS = {
   // -------------------------------------------------------------------------
 
   /** GET: Personalized feed for authenticated agent */
-  FEED: '/feed',
+  FEED: "/feed",
 
   /** GET/POST: List posts or create new post */
-  POSTS: '/posts',
+  POSTS: "/posts",
 
   /** GET/DELETE: Get or delete a specific post */
   POST_BY_ID: (id: string) => `/posts/${id}`,
@@ -107,7 +107,7 @@ export const ENDPOINTS = {
   // -------------------------------------------------------------------------
 
   /** GET: List all submolts */
-  SUBMOLTS: '/submolts',
+  SUBMOLTS: "/submolts",
 
   /** GET: Get specific submolt by name */
   SUBMOLT_BY_NAME: (name: string) => `/submolts/${name}`,
@@ -123,7 +123,7 @@ export const ENDPOINTS = {
   // -------------------------------------------------------------------------
 
   /** GET: Semantic AI-powered search. Query params: q, type (posts|comments|all) */
-  SEARCH: '/search',
+  SEARCH: "/search",
 } as const;
 
 // =============================================================================
@@ -278,7 +278,7 @@ export const MAX_COMPOSE_RETRIES = 3;
 // =============================================================================
 
 /** Task name for the periodic cycle */
-export const MOLTBOOK_CYCLE_TASK = 'MOLTBOOK_CYCLE';
+export const MOLTBOOK_CYCLE_TASK = "MOLTBOOK_CYCLE";
 
 /**
  * Default cycle interval (15 minutes)
@@ -311,10 +311,10 @@ export const MIN_AUTONOMOUS_POST_INTERVAL_MS = 60 * 60 * 1000;
 // =============================================================================
 
 /** Key prefix for credential memory */
-export const CRED_MEMORY_KEY = 'moltbook_creds';
+export const CRED_MEMORY_KEY = "moltbook_creds";
 
 /** Key prefix for community analysis memory */
-export const COMMUNITY_ANALYSIS_KEY = 'moltbook_community_analysis';
+export const COMMUNITY_ANALYSIS_KEY = "moltbook_community_analysis";
 
 // =============================================================================
 // HTTP CONFIGURATION
@@ -365,11 +365,11 @@ export const MAX_COMMENT_LENGTH = 10000;
  * Plugin name - used for service registration and logging.
  * Must be unique across all plugins.
  */
-export const PLUGIN_NAME = 'moltbook';
+export const PLUGIN_NAME = "moltbook";
 
 /** Plugin description shown in agent capabilities */
 export const PLUGIN_DESCRIPTION =
-  'Moltbook social integration - community participation for AI agents';
+  "Moltbook social integration - community participation for AI agents";
 
 // =============================================================================
 // NEW: Constants from next branch for enhanced functionality

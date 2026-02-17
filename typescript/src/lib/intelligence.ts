@@ -5,15 +5,15 @@
  * what topics are hot, and what kinds of content resonate.
  */
 
-import type { IAgentRuntime } from '@elizaos/core';
+import type { IAgentRuntime } from "@elizaos/core";
+import { CACHE_TTL_ANALYSIS_MS } from "../constants";
 import type {
+  CommunityContext,
+  EngagementOpportunity,
   MoltbookFeed,
   MoltbookPost,
   MoltbookProfile,
-  CommunityContext,
-  EngagementOpportunity,
-} from '../types';
-import { CACHE_TTL_ANALYSIS_MS } from '../constants';
+} from "../types";
 
 /**
  * Analyze the community feed to extract context
@@ -37,170 +37,170 @@ export function analyzeCommunity(feed: MoltbookFeed, runtime: IAgentRuntime): Co
 function extractActiveTopics(posts: MoltbookPost[]): string[] {
   // Word frequency analysis with stopwords filtered
   const stopwords = new Set([
-    'the',
-    'a',
-    'an',
-    'is',
-    'are',
-    'was',
-    'were',
-    'be',
-    'been',
-    'being',
-    'have',
-    'has',
-    'had',
-    'do',
-    'does',
-    'did',
-    'will',
-    'would',
-    'could',
-    'should',
-    'may',
-    'might',
-    'must',
-    'shall',
-    'can',
-    'need',
-    'dare',
-    'ought',
-    'used',
-    'to',
-    'of',
-    'in',
-    'for',
-    'on',
-    'with',
-    'at',
-    'by',
-    'from',
-    'as',
-    'into',
-    'through',
-    'during',
-    'before',
-    'after',
-    'above',
-    'below',
-    'between',
-    'under',
-    'again',
-    'further',
-    'then',
-    'once',
-    'here',
-    'there',
-    'when',
-    'where',
-    'why',
-    'how',
-    'all',
-    'each',
-    'few',
-    'more',
-    'most',
-    'other',
-    'some',
-    'such',
-    'no',
-    'nor',
-    'not',
-    'only',
-    'own',
-    'same',
-    'so',
-    'than',
-    'too',
-    'very',
-    'just',
-    'and',
-    'but',
-    'if',
-    'or',
-    'because',
-    'until',
-    'while',
-    'this',
-    'that',
-    'these',
-    'those',
-    'am',
-    'it',
-    'its',
-    'they',
-    'them',
-    'their',
-    'what',
-    'which',
-    'who',
-    'whom',
-    'i',
-    'you',
-    'he',
-    'she',
-    'we',
-    'my',
-    'your',
-    'his',
-    'her',
-    'our',
-    'me',
-    'him',
-    'us',
-    'about',
-    'like',
-    'get',
-    'got',
-    'make',
-    'made',
-    'know',
-    'think',
-    'see',
-    'come',
-    'want',
-    'look',
-    'use',
-    'find',
-    'give',
-    'tell',
-    'work',
-    'seem',
-    'feel',
-    'try',
-    'leave',
-    'call',
-    'good',
-    'new',
-    'first',
-    'last',
-    'long',
-    'great',
-    'little',
-    'own',
-    'old',
-    'right',
-    'big',
-    'high',
-    'different',
-    'small',
-    'large',
-    'next',
-    'early',
-    'young',
-    'important',
-    'few',
-    'public',
-    'bad',
-    'same',
-    'able',
-    'im',
-    'dont',
-    'youre',
-    'thats',
-    'ive',
-    'weve',
-    'theyre',
+    "the",
+    "a",
+    "an",
+    "is",
+    "are",
+    "was",
+    "were",
+    "be",
+    "been",
+    "being",
+    "have",
+    "has",
+    "had",
+    "do",
+    "does",
+    "did",
+    "will",
+    "would",
+    "could",
+    "should",
+    "may",
+    "might",
+    "must",
+    "shall",
+    "can",
+    "need",
+    "dare",
+    "ought",
+    "used",
+    "to",
+    "of",
+    "in",
+    "for",
+    "on",
+    "with",
+    "at",
+    "by",
+    "from",
+    "as",
+    "into",
+    "through",
+    "during",
+    "before",
+    "after",
+    "above",
+    "below",
+    "between",
+    "under",
+    "again",
+    "further",
+    "then",
+    "once",
+    "here",
+    "there",
+    "when",
+    "where",
+    "why",
+    "how",
+    "all",
+    "each",
+    "few",
+    "more",
+    "most",
+    "other",
+    "some",
+    "such",
+    "no",
+    "nor",
+    "not",
+    "only",
+    "own",
+    "same",
+    "so",
+    "than",
+    "too",
+    "very",
+    "just",
+    "and",
+    "but",
+    "if",
+    "or",
+    "because",
+    "until",
+    "while",
+    "this",
+    "that",
+    "these",
+    "those",
+    "am",
+    "it",
+    "its",
+    "they",
+    "them",
+    "their",
+    "what",
+    "which",
+    "who",
+    "whom",
+    "i",
+    "you",
+    "he",
+    "she",
+    "we",
+    "my",
+    "your",
+    "his",
+    "her",
+    "our",
+    "me",
+    "him",
+    "us",
+    "about",
+    "like",
+    "get",
+    "got",
+    "make",
+    "made",
+    "know",
+    "think",
+    "see",
+    "come",
+    "want",
+    "look",
+    "use",
+    "find",
+    "give",
+    "tell",
+    "work",
+    "seem",
+    "feel",
+    "try",
+    "leave",
+    "call",
+    "good",
+    "new",
+    "first",
+    "last",
+    "long",
+    "great",
+    "little",
+    "own",
+    "old",
+    "right",
+    "big",
+    "high",
+    "different",
+    "small",
+    "large",
+    "next",
+    "early",
+    "young",
+    "important",
+    "few",
+    "public",
+    "bad",
+    "same",
+    "able",
+    "im",
+    "dont",
+    "youre",
+    "thats",
+    "ive",
+    "weve",
+    "theyre",
   ]);
 
   const wordCounts = new Map<string, number>();
@@ -237,7 +237,7 @@ function findEngagementOpportunities(
   runtime: IAgentRuntime
 ): EngagementOpportunity[] {
   const opportunities: EngagementOpportunity[] = [];
-  const characterName = runtime.character.name?.toLowerCase() || '';
+  const characterName = runtime.character.name?.toLowerCase() || "";
   const characterTopics = extractCharacterTopics(runtime);
 
   for (const post of posts) {
@@ -246,13 +246,13 @@ function findEngagementOpportunities(
     // Priority 1: Mentions of the agent or related topics
     if (
       postText.includes(characterName) ||
-      postText.includes('elizaos') ||
-      postText.includes('eliza')
+      postText.includes("elizaos") ||
+      postText.includes("eliza")
     ) {
       opportunities.push({
         post,
-        reason: 'Mentions relevant topic - good opportunity to add perspective',
-        type: 'comment',
+        reason: "Mentions relevant topic - good opportunity to add perspective",
+        type: "comment",
         priority: 10,
       });
       continue;
@@ -265,19 +265,19 @@ function findEngagementOpportunities(
     if (matchingTopics.length > 0) {
       opportunities.push({
         post,
-        reason: `Relates to character interests: ${matchingTopics.join(', ')}`,
-        type: 'comment',
+        reason: `Relates to character interests: ${matchingTopics.join(", ")}`,
+        type: "comment",
         priority: 8,
       });
       continue;
     }
 
     // Priority 3: Posts asking questions
-    if (post.title.includes('?') || post.content.includes('?')) {
+    if (post.title.includes("?") || post.content.includes("?")) {
       opportunities.push({
         post,
-        reason: 'Post is asking a question - could provide helpful answer',
-        type: 'comment',
+        reason: "Post is asking a question - could provide helpful answer",
+        type: "comment",
         priority: 6,
       });
       continue;
@@ -287,8 +287,8 @@ function findEngagementOpportunities(
     if (post.score > 10 && post.commentCount > 5) {
       opportunities.push({
         post,
-        reason: 'Popular post worth acknowledging',
-        type: 'upvote',
+        reason: "Popular post worth acknowledging",
+        type: "upvote",
         priority: 3,
       });
     }
@@ -297,8 +297,8 @@ function findEngagementOpportunities(
     if (post.author.postCount < 5 && post.score > 0) {
       opportunities.push({
         post,
-        reason: 'New community member with quality content',
-        type: 'follow',
+        reason: "New community member with quality content",
+        type: "follow",
         priority: 2,
       });
     }
@@ -317,7 +317,7 @@ function extractCharacterTopics(runtime: IAgentRuntime): string[] {
   // From character bio
   if (runtime.character.bio) {
     const bioText = Array.isArray(runtime.character.bio)
-      ? runtime.character.bio.join(' ')
+      ? runtime.character.bio.join(" ")
       : runtime.character.bio;
     // Simple keyword extraction from bio
     const keywords = bioText.match(/\b[A-Za-z][a-z]{3,}\b/g) || [];
@@ -351,32 +351,32 @@ function analyzeWhatWorks(posts: MoltbookPost[]): string[] {
     const avgTitleLength =
       highScorePosts.reduce((sum, p) => sum + p.title.length, 0) / highScorePosts.length;
     if (avgTitleLength < 50) {
-      patterns.push('Concise titles (under 50 characters) perform well');
+      patterns.push("Concise titles (under 50 characters) perform well");
     } else if (avgTitleLength > 100) {
-      patterns.push('Descriptive titles work in this community');
+      patterns.push("Descriptive titles work in this community");
     }
 
     // Check for question posts
-    const questionPosts = highScorePosts.filter((p) => p.title.includes('?'));
+    const questionPosts = highScorePosts.filter((p) => p.title.includes("?"));
     if (questionPosts.length > highScorePosts.length * 0.3) {
-      patterns.push('Questions engage the community');
+      patterns.push("Questions engage the community");
     }
 
     // Check content length
     const avgContentLength =
       highScorePosts.reduce((sum, p) => sum + p.content.length, 0) / highScorePosts.length;
     if (avgContentLength < 500) {
-      patterns.push('Short, punchy posts get engagement');
+      patterns.push("Short, punchy posts get engagement");
     } else if (avgContentLength > 1500) {
-      patterns.push('In-depth content is valued');
+      patterns.push("In-depth content is valued");
     }
   }
 
   // Fallback patterns
   if (patterns.length === 0) {
-    patterns.push('Share unique perspectives and experiences');
-    patterns.push('Ask thought-provoking questions');
-    patterns.push('Provide value in every post');
+    patterns.push("Share unique perspectives and experiences");
+    patterns.push("Ask thought-provoking questions");
+    patterns.push("Provide value in every post");
   }
 
   return patterns;
@@ -418,7 +418,7 @@ function findNotableMoltys(posts: MoltbookPost[]): MoltbookProfile[] {
  */
 function assessCommunityVibe(posts: MoltbookPost[]): string {
   if (posts.length === 0) {
-    return 'quiet - not much activity right now';
+    return "quiet - not much activity right now";
   }
 
   const avgScore = posts.reduce((sum, p) => sum + p.score, 0) / posts.length;
@@ -431,25 +431,25 @@ function assessCommunityVibe(posts: MoltbookPost[]): string {
     return now - postTime < 24 * 60 * 60 * 1000; // Last 24 hours
   });
 
-  let vibe = '';
+  let vibe = "";
 
   if (recentPosts.length > posts.length * 0.5) {
-    vibe = 'active';
+    vibe = "active";
   } else {
-    vibe = 'steady';
+    vibe = "steady";
   }
 
   if (avgScore > 10) {
-    vibe += ', supportive';
+    vibe += ", supportive";
   } else if (avgScore < 2) {
-    vibe += ', discerning';
+    vibe += ", discerning";
   }
 
   if (avgComments > 5) {
-    vibe += ', conversational';
+    vibe += ", conversational";
   }
 
-  return vibe || 'engaged';
+  return vibe || "engaged";
 }
 
 /**
@@ -469,37 +469,37 @@ export function isAnalysisFresh(
 export function formatContextForPrompt(context: CommunityContext): string {
   const lines: string[] = [];
 
-  lines.push('## Current Moltbook Community Context');
-  lines.push('');
+  lines.push("## Current Moltbook Community Context");
+  lines.push("");
 
   if (context.activeTopics.length > 0) {
-    lines.push(`**Hot Topics:** ${context.activeTopics.slice(0, 5).join(', ')}`);
+    lines.push(`**Hot Topics:** ${context.activeTopics.slice(0, 5).join(", ")}`);
   }
 
   lines.push(`**Community Vibe:** ${context.vibe}`);
 
   if (context.whatWorks.length > 0) {
-    lines.push('');
-    lines.push('**What Works Here:**');
+    lines.push("");
+    lines.push("**What Works Here:**");
     for (const pattern of context.whatWorks.slice(0, 3)) {
       lines.push(`- ${pattern}`);
     }
   }
 
   if (context.engagementOpportunities.length > 0) {
-    lines.push('');
-    lines.push('**Engagement Opportunities:**');
+    lines.push("");
+    lines.push("**Engagement Opportunities:**");
     for (const opp of context.engagementOpportunities.slice(0, 3)) {
       lines.push(`- "${opp.post.title}" - ${opp.reason}`);
     }
   }
 
   if (context.notableMoltys.length > 0) {
-    lines.push('');
+    lines.push("");
     lines.push(
-      `**Notable Community Members:** ${context.notableMoltys.map((m) => m.username).join(', ')}`
+      `**Notable Community Members:** ${context.notableMoltys.map((m) => m.username).join(", ")}`
     );
   }
 
-  return lines.join('\n');
+  return lines.join("\n");
 }

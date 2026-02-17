@@ -26,27 +26,27 @@
  * Catches config errors early, before they cause cryptic failures.
  */
 
-import type { Plugin } from '@elizaos/core';
-import { z } from 'zod';
-import { MoltbookService } from './service';
-import { printBanner, type PluginSetting } from './banner';
-import { PLUGIN_NAME, PLUGIN_DESCRIPTION } from './constants';
+import type { Plugin } from "@elizaos/core";
+import { z } from "zod";
 import {
-  moltbookStatusProvider,
-  moltbookContextProvider,
-  moltbookFullAnalysisProvider,
-} from './providers';
-import {
-  postAction,
-  commentAction,
-  voteAction,
-  followAction,
   browseAction,
-  searchAction,
+  commentAction,
+  followAction,
   moltbookReadAction,
   moltbookSubmoltsAction,
-} from './actions';
-import { reflectionEvaluator } from './evaluators';
+  postAction,
+  searchAction,
+  voteAction,
+} from "./actions";
+import { type PluginSetting, printBanner } from "./banner";
+import { PLUGIN_DESCRIPTION, PLUGIN_NAME } from "./constants";
+import { reflectionEvaluator } from "./evaluators";
+import {
+  moltbookContextProvider,
+  moltbookFullAnalysisProvider,
+  moltbookStatusProvider,
+} from "./providers";
+import { MoltbookService } from "./service";
 
 /**
  * Configuration schema for the plugin
@@ -56,28 +56,28 @@ import { reflectionEvaluator } from './evaluators';
  */
 const configSchema = z.object({
   /** Pre-existing API key - skip auto-registration if provided */
-  MOLTBOOK_API_KEY: z.string().optional().describe('Optional: Pre-existing Moltbook API key'),
+  MOLTBOOK_API_KEY: z.string().optional().describe("Optional: Pre-existing Moltbook API key"),
 
   /** Enable zero-config startup by auto-registering new accounts */
   MOLTBOOK_AUTO_REGISTER: z
     .string()
     .optional()
-    .default('true')
-    .describe('Auto-register a new account if no credentials exist'),
+    .default("true")
+    .describe("Auto-register a new account if no credentials exist"),
 
   /** Let agents post without human prompting */
   MOLTBOOK_AUTO_ENGAGE: z
     .string()
     .optional()
-    .default('true')
-    .describe('Enable autonomous posting and engagement'),
+    .default("true")
+    .describe("Enable autonomous posting and engagement"),
 
   /** Quality bar for autonomous posts (1-10 scale) */
   MOLTBOOK_MIN_QUALITY_SCORE: z
     .string()
     .optional()
-    .default('7')
-    .describe('Minimum quality score (1-10) for autonomous posts'),
+    .default("7")
+    .describe("Minimum quality score (1-10) for autonomous posts"),
 });
 
 export const moltbookPlugin: Plugin = {
@@ -92,9 +92,9 @@ export const moltbookPlugin: Plugin = {
    */
   config: {
     MOLTBOOK_API_KEY: process.env.MOLTBOOK_API_KEY ?? null,
-    MOLTBOOK_AUTO_REGISTER: process.env.MOLTBOOK_AUTO_REGISTER ?? 'true',
-    MOLTBOOK_AUTO_ENGAGE: process.env.MOLTBOOK_AUTO_ENGAGE ?? 'true',
-    MOLTBOOK_MIN_QUALITY_SCORE: process.env.MOLTBOOK_MIN_QUALITY_SCORE ?? '7',
+    MOLTBOOK_AUTO_REGISTER: process.env.MOLTBOOK_AUTO_REGISTER ?? "true",
+    MOLTBOOK_AUTO_ENGAGE: process.env.MOLTBOOK_AUTO_ENGAGE ?? "true",
+    MOLTBOOK_MIN_QUALITY_SCORE: process.env.MOLTBOOK_MIN_QUALITY_SCORE ?? "7",
   },
 
   /**
@@ -113,24 +113,24 @@ export const moltbookPlugin: Plugin = {
     // Showing settings (masked for secrets) aids debugging.
     const settings: PluginSetting[] = [
       {
-        name: 'MOLTBOOK_API_KEY',
-        value: runtime.getSetting('MOLTBOOK_API_KEY'),
+        name: "MOLTBOOK_API_KEY",
+        value: runtime.getSetting("MOLTBOOK_API_KEY"),
         sensitive: true, // Mask in logs
       },
       {
-        name: 'MOLTBOOK_AUTO_REGISTER',
-        value: runtime.getSetting('MOLTBOOK_AUTO_REGISTER'),
-        defaultValue: 'true',
+        name: "MOLTBOOK_AUTO_REGISTER",
+        value: runtime.getSetting("MOLTBOOK_AUTO_REGISTER"),
+        defaultValue: "true",
       },
       {
-        name: 'MOLTBOOK_AUTO_ENGAGE',
-        value: runtime.getSetting('MOLTBOOK_AUTO_ENGAGE'),
-        defaultValue: 'false',
+        name: "MOLTBOOK_AUTO_ENGAGE",
+        value: runtime.getSetting("MOLTBOOK_AUTO_ENGAGE"),
+        defaultValue: "false",
       },
       {
-        name: 'MOLTBOOK_MIN_QUALITY_SCORE',
-        value: runtime.getSetting('MOLTBOOK_MIN_QUALITY_SCORE'),
-        defaultValue: '7',
+        name: "MOLTBOOK_MIN_QUALITY_SCORE",
+        value: runtime.getSetting("MOLTBOOK_MIN_QUALITY_SCORE"),
+        defaultValue: "7",
       },
     ];
 
@@ -150,7 +150,7 @@ export const moltbookPlugin: Plugin = {
     } catch (error) {
       if (error instanceof z.ZodError) {
         const errorMessages =
-          error.issues?.map((e) => e.message)?.join(', ') || 'Unknown validation error';
+          error.issues?.map((e) => e.message)?.join(", ") || "Unknown validation error";
         throw new Error(`Invalid plugin configuration: ${errorMessages}`);
       }
       throw new Error(
@@ -186,11 +186,11 @@ export const moltbookPlugin: Plugin = {
    * - moltbookSubmolts: List/examine submolts (subreddits for AI agents)
    */
   actions: [
-    postAction, 
-    commentAction, 
-    voteAction, 
-    followAction, 
-    browseAction, 
+    postAction,
+    commentAction,
+    voteAction,
+    followAction,
+    browseAction,
     searchAction,
     moltbookReadAction,
     moltbookSubmoltsAction,

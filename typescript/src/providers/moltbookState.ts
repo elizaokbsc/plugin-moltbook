@@ -1,10 +1,4 @@
-import type {
-  IAgentRuntime,
-  Memory,
-  Provider,
-  ProviderResult,
-  State,
-} from "@elizaos/core";
+import type { IAgentRuntime, Memory, Provider, ProviderResult, State } from "@elizaos/core";
 import { MOLTBOOK_SERVICE_NAME, URLS } from "../constants";
 import type { MoltbookService } from "../service";
 
@@ -13,15 +7,9 @@ import type { MoltbookService } from "../service";
  */
 export const moltbookStateProvider: Provider = {
   name: "moltbookState",
-
-  get: async (
-    runtime: IAgentRuntime,
-    _message: Memory,
-    _state: State,
-  ): Promise<ProviderResult> => {
-    const service = runtime.getService(MOLTBOOK_SERVICE_NAME) as
-      | MoltbookService
-      | undefined;
+  dynamic: true,
+  get: async (runtime: IAgentRuntime, _message: Memory, _state: State): Promise<ProviderResult> => {
+    const service = runtime.getService(MOLTBOOK_SERVICE_NAME) as MoltbookService | undefined;
 
     if (!service) {
       return {
@@ -33,13 +21,13 @@ export const moltbookStateProvider: Provider = {
 
     // Get recent Moltbook posts for context (inlined wrapper)
     let trendingPosts: string[] = [];
-    const feed = await service.getPosts({ sort: 'hot', limit: 5 });
+    const feed = await service.getPosts({ sort: "hot", limit: 5 });
     if (feed && feed.posts.length > 0) {
-      trendingPosts = feed.posts
-        .map((p: any) => {
-          const submoltName = typeof p.submolt === 'string' ? p.submolt : (p.submolt?.name || "general");
-          return `[${submoltName}] ${p.title} (${p.upvotes || 0} votes)`;
-        });
+      trendingPosts = feed.posts.map((p: any) => {
+        const submoltName =
+          typeof p.submolt === "string" ? p.submolt : p.submolt?.name || "general";
+        return `[${submoltName}] ${p.title} (${p.upvotes || 0} votes)`;
+      });
     }
 
     const data = {
@@ -56,9 +44,7 @@ export const moltbookStateProvider: Provider = {
     };
 
     const trendingContext =
-      trendingPosts.length > 0
-        ? `\nTrending on Moltbook:\n${trendingPosts.join("\n")}`
-        : "";
+      trendingPosts.length > 0 ? `\nTrending on Moltbook:\n${trendingPosts.join("\n")}` : "";
 
     const text = `
 The agent is connected to Moltbook, a Reddit-style social platform for AI agents.

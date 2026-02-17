@@ -32,12 +32,12 @@
  * The cache is per-agent (keyed by agentId) so multiple agents don't conflict.
  */
 
-import type { IAgentRuntime, Memory, Provider, ProviderResult, State } from '@elizaos/core';
-import { MoltbookService } from '../service';
-import { analyzeCommunity, formatContextForPrompt, isAnalysisFresh } from '../lib/intelligence';
-import type { CommunityContext } from '../types';
-import { getRateLimitStatus } from '../lib/rateLimiter';
-import { PLUGIN_NAME } from '../constants';
+import type { IAgentRuntime, Memory, Provider, ProviderResult, State } from "@elizaos/core";
+import { PLUGIN_NAME } from "../constants";
+import { analyzeCommunity, formatContextForPrompt, isAnalysisFresh } from "../lib/intelligence";
+import { getRateLimitStatus } from "../lib/rateLimiter";
+import type { MoltbookService } from "../service";
+import type { CommunityContext } from "../types";
 
 // Cache community analysis per agent
 const analysisCache = new Map<string, CommunityContext>();
@@ -58,11 +58,10 @@ const analysisCache = new Map<string, CommunityContext>();
  * Fastest provider - no API calls if credentials are cached.
  */
 export const moltbookStatusProvider: Provider = {
-  name: 'MOLTBOOK_STATUS',
+  name: "MOLTBOOK_STATUS",
   description:
     'Quick Moltbook status check: authentication state and rate limits. Use for simple "can I post?" checks. Low context cost.',
   dynamic: true,
-
   get: async (
     runtime: IAgentRuntime,
     _message: Memory,
@@ -71,7 +70,7 @@ export const moltbookStatusProvider: Provider = {
     const service = runtime.getService<MoltbookService>(PLUGIN_NAME);
     if (!service) {
       return {
-        text: 'Moltbook: Service not available',
+        text: "Moltbook: Service not available",
         values: { moltbookEnabled: false },
         data: {},
       };
@@ -80,7 +79,7 @@ export const moltbookStatusProvider: Provider = {
     const creds = await service.getCredentials();
     if (!creds) {
       return {
-        text: 'Moltbook: Not authenticated',
+        text: "Moltbook: Not authenticated",
         values: { moltbookEnabled: false, moltbookAuthenticated: false },
         data: {},
       };
@@ -99,7 +98,7 @@ export const moltbookStatusProvider: Provider = {
     }
 
     return {
-      text: status.join(' '),
+      text: status.join(" "),
       values: {
         moltbookEnabled: true,
         moltbookAuthenticated: true,
@@ -132,11 +131,10 @@ export const moltbookStatusProvider: Provider = {
  * Moderate cost - may trigger feed fetch if cache is stale.
  */
 export const moltbookContextProvider: Provider = {
-  name: 'MOLTBOOK_CONTEXT',
+  name: "MOLTBOOK_CONTEXT",
   description:
-    'Moltbook status plus community summary: hot topics and vibe. Use for deciding whether/what to post. Medium context cost.',
+    "Moltbook status plus community summary: hot topics and vibe. Use for deciding whether/what to post. Medium context cost.",
   dynamic: true,
-
   get: async (
     runtime: IAgentRuntime,
     _message: Memory,
@@ -145,7 +143,7 @@ export const moltbookContextProvider: Provider = {
     const service = runtime.getService<MoltbookService>(PLUGIN_NAME);
     if (!service) {
       return {
-        text: 'Moltbook: Service not available',
+        text: "Moltbook: Service not available",
         values: { moltbookEnabled: false },
         data: {},
       };
@@ -154,7 +152,7 @@ export const moltbookContextProvider: Provider = {
     const creds = await service.getCredentials();
     if (!creds) {
       return {
-        text: 'Moltbook: Not authenticated',
+        text: "Moltbook: Not authenticated",
         values: { moltbookEnabled: false, moltbookAuthenticated: false },
         data: {},
       };
@@ -170,7 +168,7 @@ export const moltbookContextProvider: Provider = {
           analysisCache.set(runtime.agentId, context);
         }
       } catch (error) {
-        runtime.logger.error({ error }, 'Failed to analyze Moltbook community');
+        runtime.logger.error({ error }, "Failed to analyze Moltbook community");
       }
     }
 
@@ -186,13 +184,13 @@ export const moltbookContextProvider: Provider = {
 
     if (context) {
       if (context.activeTopics.length > 0) {
-        lines.push(`**Hot topics:** ${context.activeTopics.slice(0, 5).join(', ')}`);
+        lines.push(`**Hot topics:** ${context.activeTopics.slice(0, 5).join(", ")}`);
       }
       lines.push(`**Vibe:** ${context.vibe}`);
     }
 
     return {
-      text: lines.join('\n'),
+      text: lines.join("\n"),
       values: {
         moltbookEnabled: true,
         moltbookAuthenticated: true,
@@ -200,7 +198,7 @@ export const moltbookContextProvider: Provider = {
         moltbookCanPost: rateLimits.canPost,
         moltbookCanComment: rateLimits.canComment,
         moltbookActiveTopics: context?.activeTopics || [],
-        moltbookVibe: context?.vibe || 'unknown',
+        moltbookVibe: context?.vibe || "unknown",
       },
       data: {
         credentials: { username: creds.username, userId: creds.userId },
@@ -230,11 +228,10 @@ export const moltbookContextProvider: Provider = {
  * Use sparingly, only when crafting posts or making strategic decisions.
  */
 export const moltbookFullAnalysisProvider: Provider = {
-  name: 'MOLTBOOK_FULL_ANALYSIS',
+  name: "MOLTBOOK_FULL_ANALYSIS",
   description:
-    'Complete Moltbook analysis: opportunities, notable users, what works. Use when composing posts or making strategic engagement decisions. High context cost.',
+    "Complete Moltbook analysis: opportunities, notable users, what works. Use when composing posts or making strategic engagement decisions. High context cost.",
   dynamic: true,
-
   get: async (
     runtime: IAgentRuntime,
     _message: Memory,
@@ -243,7 +240,7 @@ export const moltbookFullAnalysisProvider: Provider = {
     const service = runtime.getService<MoltbookService>(PLUGIN_NAME);
     if (!service) {
       return {
-        text: 'Moltbook: Service not available',
+        text: "Moltbook: Service not available",
         values: { moltbookEnabled: false },
         data: {},
       };
@@ -252,7 +249,7 @@ export const moltbookFullAnalysisProvider: Provider = {
     const creds = await service.getCredentials();
     if (!creds) {
       return {
-        text: 'Moltbook: Not authenticated',
+        text: "Moltbook: Not authenticated",
         values: { moltbookEnabled: false, moltbookAuthenticated: false },
         data: {},
       };
@@ -267,7 +264,7 @@ export const moltbookFullAnalysisProvider: Provider = {
         analysisCache.set(runtime.agentId, context);
       }
     } catch (error) {
-      runtime.logger.error({ error }, 'Failed to get full Moltbook analysis');
+      runtime.logger.error({ error }, "Failed to get full Moltbook analysis");
       context = analysisCache.get(runtime.agentId);
     }
 
@@ -278,33 +275,33 @@ export const moltbookFullAnalysisProvider: Provider = {
     const submolts = await service.getSubmolts();
 
     // Get global trending posts (different from personalized feed)
-    const globalPosts = await service.getPosts({ sort: 'hot', limit: 10 });
+    const globalPosts = await service.getPosts({ sort: "hot", limit: 10 });
 
     // Full detail output
     const lines: string[] = [];
 
     lines.push(`## Moltbook Full Analysis`);
-    lines.push('');
-    lines.push(`**Account:** @${creds.username} (${creds.claimStatus || 'unclaimed'})`);
+    lines.push("");
+    lines.push(`**Account:** @${creds.username} (${creds.claimStatus || "unclaimed"})`);
     if (profile) {
       lines.push(`**Stats:** ${profile.postCount} posts, ${profile.followerCount} followers`);
     }
-    lines.push('');
+    lines.push("");
 
     // Rate limit status
-    lines.push('**Rate Limits:**');
+    lines.push("**Rate Limits:**");
     lines.push(
-      `- Can post: ${rateLimits.canPost ? 'Yes' : `No (wait ${Math.ceil(rateLimits.timeUntilCanPost / 60000)}m)`}`
+      `- Can post: ${rateLimits.canPost ? "Yes" : `No (wait ${Math.ceil(rateLimits.timeUntilCanPost / 60000)}m)`}`
     );
     lines.push(`- Comments remaining: ${rateLimits.commentsRemaining}/50`);
     lines.push(`- Requests remaining: ${rateLimits.requestsRemaining}/100`);
 
     // Available submolts (communities)
     if (submolts && submolts.length > 0) {
-      lines.push('');
-      lines.push('**Communities (submolts):**');
+      lines.push("");
+      lines.push("**Communities (submolts):**");
       for (const s of submolts.slice(0, 5)) {
-        lines.push(`- m/${s.name}: ${s.description?.slice(0, 50) || 'No description'}...`);
+        lines.push(`- m/${s.name}: ${s.description?.slice(0, 50) || "No description"}...`);
       }
       if (submolts.length > 5) {
         lines.push(`  ...and ${submolts.length - 5} more`);
@@ -313,24 +310,24 @@ export const moltbookFullAnalysisProvider: Provider = {
 
     // Global trending (beyond personalized feed)
     if (globalPosts && globalPosts.posts.length > 0) {
-      lines.push('');
-      lines.push('**Global Trending:**');
+      lines.push("");
+      lines.push("**Global Trending:**");
       for (const p of globalPosts.posts.slice(0, 3)) {
         lines.push(`- "${p.title}" by @${p.author.username} (↑${p.score})`);
       }
     }
 
     if (context) {
-      lines.push('');
+      lines.push("");
       lines.push(formatContextForPrompt(context));
     }
 
     // Note about semantic search capability
-    lines.push('');
-    lines.push('_Tip: Use semantic search to find relevant posts by meaning, not just keywords._');
+    lines.push("");
+    lines.push("_Tip: Use semantic search to find relevant posts by meaning, not just keywords._");
 
     return {
-      text: lines.join('\n'),
+      text: lines.join("\n"),
       values: {
         moltbookEnabled: true,
         moltbookAuthenticated: true,
@@ -339,7 +336,7 @@ export const moltbookFullAnalysisProvider: Provider = {
         moltbookCanPost: rateLimits.canPost,
         moltbookCanComment: rateLimits.canComment,
         moltbookActiveTopics: context?.activeTopics || [],
-        moltbookVibe: context?.vibe || 'unknown',
+        moltbookVibe: context?.vibe || "unknown",
         moltbookOpportunityCount: context?.engagementOpportunities.length || 0,
         moltbookSubmoltCount: submolts?.length || 0,
       },
@@ -396,7 +393,7 @@ export async function refreshCommunityAnalysis(
       return context;
     }
   } catch (error) {
-    runtime.logger.error({ error }, 'Failed to refresh Moltbook community analysis');
+    runtime.logger.error({ error }, "Failed to refresh Moltbook community analysis");
   }
 
   return analysisCache.get(runtime.agentId) || null;

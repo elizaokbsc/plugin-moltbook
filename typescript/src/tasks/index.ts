@@ -2,4 +2,4 @@
  * Moltbook Tasks
  */
 
-export { moltbookCycleWorker } from './cycle';
+export { moltbookCycleWorker } from "./cycle";

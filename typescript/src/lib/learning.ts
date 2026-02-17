@@ -20,9 +20,9 @@
  * - Develops a nuanced understanding of community culture
  */
 
-import type { IAgentRuntime, Memory } from '@elizaos/core';
-import { createUniqueUuid } from '@elizaos/core';
-import type { MoltbookPost, MoltbookProfile, CommunityContext } from '../types';
+import type { IAgentRuntime } from "@elizaos/core";
+import { createUniqueUuid } from "@elizaos/core";
+import type { CommunityContext, MoltbookPost, MoltbookProfile } from "../types";
 
 // =============================================================================
 // OBSERVATION STORAGE
@@ -32,7 +32,7 @@ import type { MoltbookPost, MoltbookProfile, CommunityContext } from '../types';
  * Metadata for a stored observation (interesting post)
  */
 interface ObservationMetadata {
-  type: 'moltbook_observation';
+  type: "moltbook_observation";
   postId: string;
   title: string;
   author: string;
@@ -67,7 +67,7 @@ export async function storeObservation(
   const memoryId = createUniqueUuid(runtime, `moltbook_obs_${post.id}`);
 
   const metadata: ObservationMetadata = {
-    type: 'moltbook_observation',
+    type: "moltbook_observation",
     postId: post.id,
     title: post.title,
     author: post.author.username,
@@ -94,12 +94,12 @@ export async function storeObservation(
         metadata: metadata as any,
       },
     },
-    'moltbook_observations'
+    "moltbook_observations"
   );
 
   runtime.logger.debug(
     { postId: post.id, title: post.title, reason },
-    'Moltbook: Stored observation'
+    "Moltbook: Stored observation"
   );
 }
 
@@ -112,16 +112,16 @@ export async function getRecentObservations(
 ): Promise<ObservationMetadata[]> {
   try {
     const memories = await runtime.getMemories({
-      tableName: 'moltbook_observations',
+      tableName: "moltbook_observations",
       roomId: runtime.agentId,
       count: limit,
     });
 
     return memories
-      .filter((m) => (m.content.metadata as any)?.type === 'moltbook_observation')
+      .filter((m) => (m.content.metadata as any)?.type === "moltbook_observation")
       .map((m) => m.content.metadata as any as ObservationMetadata);
   } catch (error) {
-    runtime.logger.warn({ error }, 'Moltbook: Failed to get observations');
+    runtime.logger.warn({ error }, "Moltbook: Failed to get observations");
     return [];
   }
 }
@@ -134,8 +134,8 @@ export async function getRecentObservations(
  * A cultural learning - something the agent has learned about Moltbook
  */
 interface CulturalLearning {
-  type: 'moltbook_cultural_learning';
-  category: 'norm' | 'topic' | 'style' | 'humor' | 'engagement';
+  type: "moltbook_cultural_learning";
+  category: "norm" | "topic" | "style" | "humor" | "engagement";
   learning: string;
   learnedAt: number;
   confidence: number; // 0-1, increases with repeated observations
@@ -152,13 +152,13 @@ interface CulturalLearning {
  */
 export async function storeCulturalLearning(
   runtime: IAgentRuntime,
-  category: CulturalLearning['category'],
+  category: CulturalLearning["category"],
   learning: string,
   examples: string[] = [],
   confidence: number = 0.5
 ): Promise<void> {
   // Use a hash of the learning text to detect duplicates
-  const learningKey = `moltbook_learn_${category}_${learning.slice(0, 50).replace(/\W/g, '_')}`;
+  const learningKey = `moltbook_learn_${category}_${learning.slice(0, 50).replace(/\W/g, "_")}`;
   const memoryId = createUniqueUuid(runtime, learningKey);
 
   // Check if we already have this learning
@@ -179,12 +179,12 @@ export async function storeCulturalLearning(
             metadata: meta as any,
           },
         },
-        'moltbook_cultural_learnings'
+        "moltbook_cultural_learnings"
       );
 
       runtime.logger.debug(
         { category, confidence: meta.confidence },
-        'Moltbook: Reinforced cultural learning'
+        "Moltbook: Reinforced cultural learning"
       );
       return;
     }
@@ -193,7 +193,7 @@ export async function storeCulturalLearning(
   }
 
   const metadata: CulturalLearning = {
-    type: 'moltbook_cultural_learning',
+    type: "moltbook_cultural_learning",
     category,
     learning,
     learnedAt: Date.now(),
@@ -213,12 +213,12 @@ export async function storeCulturalLearning(
         metadata: metadata as any,
       },
     },
-    'moltbook_cultural_learnings'
+    "moltbook_cultural_learnings"
   );
 
   runtime.logger.debug(
     { category, learning: learning.slice(0, 50) },
-    'Moltbook: Stored new cultural learning'
+    "Moltbook: Stored new cultural learning"
   );
 }
 
@@ -227,17 +227,17 @@ export async function storeCulturalLearning(
  */
 export async function getCulturalLearnings(
   runtime: IAgentRuntime,
-  category?: CulturalLearning['category']
+  category?: CulturalLearning["category"]
 ): Promise<CulturalLearning[]> {
   try {
     const memories = await runtime.getMemories({
-      tableName: 'moltbook_cultural_learnings',
+      tableName: "moltbook_cultural_learnings",
       roomId: runtime.agentId,
       count: 100,
     });
 
     let learnings = memories
-      .filter((m) => (m.content.metadata as any)?.type === 'moltbook_cultural_learning')
+      .filter((m) => (m.content.metadata as any)?.type === "moltbook_cultural_learning")
       .map((m) => m.content.metadata as any as CulturalLearning);
 
     if (category) {
@@ -247,7 +247,7 @@ export async function getCulturalLearnings(
     // Sort by confidence (most confident first)
     return learnings.sort((a, b) => b.confidence - a.confidence);
   } catch (error) {
-    runtime.logger.warn({ error }, 'Moltbook: Failed to get cultural learnings');
+    runtime.logger.warn({ error }, "Moltbook: Failed to get cultural learnings");
     return [];
   }
 }
@@ -256,7 +256,7 @@ export async function getCulturalLearnings(
  * Format cultural learnings for inclusion in prompts
  */
 export function formatCulturalLearnings(learnings: CulturalLearning[]): string {
-  if (learnings.length === 0) return '';
+  if (learnings.length === 0) return "";
 
   const byCategory = new Map<string, CulturalLearning[]>();
   for (const l of learnings) {
@@ -265,18 +265,18 @@ export function formatCulturalLearnings(learnings: CulturalLearning[]): string {
     byCategory.set(l.category, existing);
   }
 
-  const lines: string[] = ['## What I\'ve Learned About Moltbook Culture'];
+  const lines: string[] = ["## What I've Learned About Moltbook Culture"];
 
   for (const [category, items] of byCategory) {
     lines.push(`\n### ${category.charAt(0).toUpperCase() + category.slice(1)}`);
     for (const item of items.slice(0, 3)) {
       // Top 3 per category
-      const stars = '★'.repeat(Math.round(item.confidence * 5));
+      const stars = "★".repeat(Math.round(item.confidence * 5));
       lines.push(`- ${item.learning} ${stars}`);
     }
   }
 
-  return lines.join('\n');
+  return lines.join("\n");
 }
 
 // =============================================================================
@@ -287,7 +287,7 @@ export function formatCulturalLearnings(learnings: CulturalLearning[]): string {
  * A notable user the agent has encountered
  */
 interface NotableUser {
-  type: 'moltbook_notable_user';
+  type: "moltbook_notable_user";
   userId: string;
   username: string;
   displayName?: string;
@@ -296,7 +296,7 @@ interface NotableUser {
   /** Topics they frequently post about */
   topics: string[];
   /** Our relationship status */
-  relationship: 'unknown' | 'following' | 'mutual' | 'engaged';
+  relationship: "unknown" | "following" | "mutual" | "engaged";
   /** When we first noticed them */
   firstSeen: number;
   /** When we last saw activity from them */
@@ -336,7 +336,7 @@ export async function rememberNotableUser(
         meta.notes = [...meta.notes, reason].slice(-5);
       }
       if (profile.isFollowing) {
-        meta.relationship = 'following';
+        meta.relationship = "following";
       }
 
       await runtime.createMemory(
@@ -347,12 +347,12 @@ export async function rememberNotableUser(
             metadata: meta as any,
           },
         },
-        'moltbook_notable_users'
+        "moltbook_notable_users"
       );
 
       runtime.logger.debug(
         { username: profile.username, interactions: meta.interactions },
-        'Moltbook: Updated notable user'
+        "Moltbook: Updated notable user"
       );
       return;
     }
@@ -361,13 +361,13 @@ export async function rememberNotableUser(
   }
 
   const metadata: NotableUser = {
-    type: 'moltbook_notable_user',
+    type: "moltbook_notable_user",
     userId: profile.id,
     username: profile.username,
     displayName: profile.displayName,
     reason,
     topics,
-    relationship: profile.isFollowing ? 'following' : 'unknown',
+    relationship: profile.isFollowing ? "following" : "unknown",
     firstSeen: Date.now(),
     lastSeen: Date.now(),
     interactions: 0,
@@ -385,12 +385,12 @@ export async function rememberNotableUser(
         metadata: metadata as any,
       },
     },
-    'moltbook_notable_users'
+    "moltbook_notable_users"
   );
 
   runtime.logger.debug(
     { username: profile.username, reason },
-    'Moltbook: Remembered new notable user'
+    "Moltbook: Remembered new notable user"
   );
 }
 
@@ -403,17 +403,17 @@ export async function getNotableUsers(
 ): Promise<NotableUser[]> {
   try {
     const memories = await runtime.getMemories({
-      tableName: 'moltbook_notable_users',
+      tableName: "moltbook_notable_users",
       roomId: runtime.agentId,
       count: limit,
     });
 
     return memories
-      .filter((m) => (m.content.metadata as any)?.type === 'moltbook_notable_user')
+      .filter((m) => (m.content.metadata as any)?.type === "moltbook_notable_user")
       .map((m) => m.content.metadata as any as NotableUser)
       .sort((a, b) => b.interactions - a.interactions);
   } catch (error) {
-    runtime.logger.warn({ error }, 'Moltbook: Failed to get notable users');
+    runtime.logger.warn({ error }, "Moltbook: Failed to get notable users");
     return [];
   }
 }
@@ -422,19 +422,19 @@ export async function getNotableUsers(
  * Format notable users for inclusion in prompts
  */
 export function formatNotableUsers(users: NotableUser[]): string {
-  if (users.length === 0) return '';
+  if (users.length === 0) return "";
 
-  const lines: string[] = ['## Notable Community Members'];
+  const lines: string[] = ["## Notable Community Members"];
 
   for (const user of users.slice(0, 10)) {
-    const rel = user.relationship !== 'unknown' ? ` [${user.relationship}]` : '';
+    const rel = user.relationship !== "unknown" ? ` [${user.relationship}]` : "";
     lines.push(`- @${user.username}${rel}: ${user.reason}`);
     if (user.topics.length > 0) {
-      lines.push(`  Topics: ${user.topics.join(', ')}`);
+      lines.push(`  Topics: ${user.topics.join(", ")}`);
     }
   }
 
-  return lines.join('\n');
+  return lines.join("\n");
 }
 
 // =============================================================================
@@ -458,14 +458,14 @@ export async function reflectOnObservations(
     await rememberNotableUser(
       runtime,
       profile,
-      'Active community member',
+      "Active community member",
       context.activeTopics.slice(0, 3)
     );
   }
 
   // Extract cultural learnings from what works
   for (const norm of context.whatWorks) {
-    await storeCulturalLearning(runtime, 'norm', norm, [], 0.4);
+    await storeCulturalLearning(runtime, "norm", norm, [], 0.4);
   }
 
   // Learn from highly engaged posts
@@ -475,9 +475,10 @@ export async function reflectOnObservations(
         runtime,
         post,
         `High engagement: ${post.upvotes} upvotes, ${post.commentCount} comments`,
-        context.activeTopics.filter((t) =>
-          post.title.toLowerCase().includes(t.toLowerCase()) ||
-          post.content.toLowerCase().includes(t.toLowerCase())
+        context.activeTopics.filter(
+          (t) =>
+            post.title.toLowerCase().includes(t.toLowerCase()) ||
+            post.content.toLowerCase().includes(t.toLowerCase())
         )
       );
     }
@@ -487,8 +488,8 @@ export async function reflectOnObservations(
   if (context.activeTopics.length > 0) {
     await storeCulturalLearning(
       runtime,
-      'topic',
-      `Hot topics: ${context.activeTopics.slice(0, 5).join(', ')}`,
+      "topic",
+      `Hot topics: ${context.activeTopics.slice(0, 5).join(", ")}`,
       [],
       0.3
     );
@@ -496,16 +497,10 @@ export async function reflectOnObservations(
 
   // Extract vibe learnings
   if (context.vibe) {
-    await storeCulturalLearning(
-      runtime,
-      'style',
-      `Community vibe: ${context.vibe}`,
-      [],
-      0.5
-    );
+    await storeCulturalLearning(runtime, "style", `Community vibe: ${context.vibe}`, [], 0.5);
   }
 
-  runtime.logger.debug('Moltbook: Reflection complete');
+  runtime.logger.debug("Moltbook: Reflection complete");
 }
 
 /**
@@ -528,11 +523,11 @@ export async function getLearningsSummary(runtime: IAgentRuntime): Promise<strin
   }
 
   if (observations.length > 0) {
-    parts.push('\n## Recent Observations');
+    parts.push("\n## Recent Observations");
     for (const obs of observations) {
       parts.push(`- "${obs.title}" by @${obs.author}: ${obs.reason}`);
     }
   }
 
-  return parts.join('\n\n');
+  return parts.join("\n\n");
 }

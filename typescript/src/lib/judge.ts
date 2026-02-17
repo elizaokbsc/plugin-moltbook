@@ -5,10 +5,10 @@
  * Ensures posts meet quality standards before publishing.
  */
 
-import type { IAgentRuntime } from '@elizaos/core';
-import { ModelType } from '@elizaos/core';
-import type { QualityScore, ContentToJudge, CommunityContext } from '../types';
-import { MIN_QUALITY_SCORE_AUTONOMOUS, MIN_QUALITY_SCORE_USER } from '../constants';
+import type { IAgentRuntime } from "@elizaos/core";
+import { ModelType } from "@elizaos/core";
+import { MIN_QUALITY_SCORE_AUTONOMOUS, MIN_QUALITY_SCORE_USER } from "../constants";
+import type { CommunityContext, ContentToJudge, QualityScore } from "../types";
 
 /**
  * Judge content quality using LLM
@@ -19,7 +19,7 @@ export async function judgeContent(
   context?: CommunityContext,
   isAutonomous: boolean = false
 ): Promise<QualityScore> {
-  const characterName = runtime.character.name || 'Agent';
+  const characterName = runtime.character.name || "Agent";
   const minScore = isAutonomous ? MIN_QUALITY_SCORE_AUTONOMOUS : MIN_QUALITY_SCORE_USER;
 
   // Build the judging prompt
@@ -37,7 +37,7 @@ export async function judgeContent(
     // Parse the response
     return parseJudgeResponse(response, minScore);
   } catch (error) {
-    runtime.logger.error({ error }, 'Error judging content quality');
+    runtime.logger.error({ error }, "Error judging content quality");
 
     // Return failing score on error
     return {
@@ -47,7 +47,7 @@ export async function judgeContent(
       voice: 0,
       value: 0,
       overall: 0,
-      feedback: 'Failed to evaluate content quality',
+      feedback: "Failed to evaluate content quality",
       pass: false,
     };
   }
@@ -61,15 +61,15 @@ function buildJudgePrompt(
   characterName: string,
   context?: CommunityContext
 ): string {
-  const contentType = content.isComment ? 'comment' : 'post';
+  const contentType = content.isComment ? "comment" : "post";
 
-  let contextInfo = '';
+  let contextInfo = "";
   if (context) {
     contextInfo = `
 Current Community Context:
-- Hot topics: ${context.activeTopics.slice(0, 5).join(', ') || 'various'}
+- Hot topics: ${context.activeTopics.slice(0, 5).join(", ") || "various"}
 - Community vibe: ${context.vibe}
-- What works: ${context.whatWorks[0] || 'quality content'}
+- What works: ${context.whatWorks[0] || "quality content"}
 `;
   }
 
@@ -81,7 +81,7 @@ Current Community Context:
 
 ${contextInfo}
 
-${content.context ? `Context for this ${contentType}: ${content.context}\n` : ''}
+${content.context ? `Context for this ${contentType}: ${content.context}\n` : ""}
 
 --- BEGIN ${contentType.toUpperCase()} ---
 ${fullContent}
@@ -118,7 +118,7 @@ function parseJudgeResponse(response: string, minScore: number): QualityScore {
     voice: 5,
     value: 5,
     overall: 5,
-    feedback: 'Unable to parse feedback',
+    feedback: "Unable to parse feedback",
     pass: false,
   };
 
@@ -153,7 +153,7 @@ function parseJudgeResponse(response: string, minScore: number): QualityScore {
 
     // Determine if it passes
     scores.pass = scores.overall >= minScore;
-  } catch (error) {
+  } catch (_error) {
     // Keep default values on parse error
   }
 
@@ -168,11 +168,11 @@ export async function quickQualityCheck(
   runtime: IAgentRuntime,
   content: ContentToJudge
 ): Promise<{ pass: boolean; reason: string }> {
-  const characterName = runtime.character.name || 'Agent';
+  const characterName = runtime.character.name || "Agent";
 
   const prompt = `Quick quality check for a Moltbook post from ${characterName}:
 
-${content.title ? `Title: ${content.title}\n` : ''}Content: ${content.content.slice(0, 500)}
+${content.title ? `Title: ${content.title}\n` : ""}Content: ${content.content.slice(0, 500)}
 
 Does this post:
 1. Sound authentic to ${characterName}?
@@ -188,18 +188,18 @@ Then briefly explain why in one sentence.`;
       temperature: 0.2,
     });
 
-    const pass = response.toUpperCase().includes('PASS');
+    const pass = response.toUpperCase().includes("PASS");
     const reasonMatch = response.match(/(?:PASS|FAIL)[:\s]*(.+)/i);
     const reason = reasonMatch
       ? reasonMatch[1].trim()
       : pass
-        ? 'Content meets quality standards'
-        : 'Content does not meet quality standards';
+        ? "Content meets quality standards"
+        : "Content does not meet quality standards";
 
     return { pass, reason };
   } catch (error) {
-    runtime.logger.error({ error }, 'Error in quick quality check');
-    return { pass: true, reason: 'Quality check skipped due to error' };
+    runtime.logger.error({ error }, "Error in quick quality check");
+    return { pass: true, reason: "Quality check skipped due to error" };
   }
 }
 
@@ -207,7 +207,7 @@ Then briefly explain why in one sentence.`;
  * Format quality score for display
  */
 export function formatQualityScore(score: QualityScore): string {
-  const emoji = score.pass ? '✅' : '❌';
+  const emoji = score.pass ? "✅" : "❌";
   return `${emoji} Quality Score: ${score.overall}/10
   - Relevance: ${score.relevance}/10
   - Interestingness: ${score.interestingness}/10

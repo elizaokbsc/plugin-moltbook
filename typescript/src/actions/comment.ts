@@ -11,45 +11,74 @@ import type {
   IAgentRuntime,
   Memory,
   State,
-} from '@elizaos/core';
-import { MoltbookService } from '../service';
-import { composeComment } from '../lib/compose';
-import { quickQualityCheck } from '../lib/judge';
-import { analyzeCommunity } from '../lib/intelligence';
-import { PLUGIN_NAME } from '../constants';
+} from "@elizaos/core";
+import { PLUGIN_NAME } from "../constants";
+import { composeComment } from "../lib/compose";
+import { analyzeCommunity } from "../lib/intelligence";
+import { quickQualityCheck } from "../lib/judge";
+import type { MoltbookService } from "../service";
 
 export const commentAction: Action = {
-  name: 'MOLTBOOK_COMMENT',
-  similes: ['COMMENT_ON_MOLTBOOK', 'REPLY_MOLTBOOK', 'MOLTBOOK_REPLY'],
+  name: "MOLTBOOK_COMMENT",
+  similes: ["COMMENT_ON_MOLTBOOK", "REPLY_MOLTBOOK", "MOLTBOOK_REPLY"],
   description:
-    'Comment on a Moltbook post. The comment will go through a quality check before posting.',
+    "Comment on a Moltbook post. The comment will go through a quality check before posting.",
 
-  validate: async (
-    runtime: IAgentRuntime,
-    message: Memory,
-    _state: State | undefined
-  ): Promise<boolean> => {
-    const text = message.content.text?.toLowerCase() || '';
+  validate: async (runtime: any, message: any, state?: any, options?: any): Promise<boolean> => {
+    const __avTextRaw = typeof message?.content?.text === "string" ? message.content.text : "";
+    const __avText = __avTextRaw.toLowerCase();
+    const __avKeywords = ["moltbook", "comment"];
+    const __avKeywordOk =
+      __avKeywords.length > 0 && __avKeywords.some((kw) => kw.length > 0 && __avText.includes(kw));
+    const __avRegex = /\b(?:moltbook|comment)\b/i;
+    const __avRegexOk = __avRegex.test(__avText);
+    const __avSource = String(message?.content?.source ?? message?.source ?? "");
+    const __avExpectedSource = "";
+    const __avSourceOk = __avExpectedSource
+      ? __avSource === __avExpectedSource
+      : Boolean(__avSource || state || runtime?.agentId || runtime?.getService);
+    const __avOptions = options && typeof options === "object" ? options : {};
+    const __avInputOk =
+      __avText.trim().length > 0 ||
+      Object.keys(__avOptions as Record<string, unknown>).length > 0 ||
+      Boolean(message?.content && typeof message.content === "object");
 
-    // Check for comment intent
-    const hasCommentIntent =
-      text.includes('comment') || text.includes('reply') || text.includes('respond');
+    if (!(__avKeywordOk && __avRegexOk && __avSourceOk && __avInputOk)) {
+      return false;
+    }
 
-    const hasMoltbookMention = text.includes('moltbook') || text.includes('post');
+    const __avLegacyValidate = async (
+      _runtime: IAgentRuntime,
+      message: Memory,
+      _state: State | undefined
+    ): Promise<boolean> => {
+      const text = message.content.text?.toLowerCase() || "";
 
-    return hasCommentIntent && hasMoltbookMention;
+      // Check for comment intent
+      const hasCommentIntent =
+        text.includes("comment") || text.includes("reply") || text.includes("respond");
+
+      const hasMoltbookMention = text.includes("moltbook") || text.includes("post");
+
+      return hasCommentIntent && hasMoltbookMention;
+    };
+    try {
+      return Boolean(await (__avLegacyValidate as any)(runtime, message, state, options));
+    } catch {
+      return false;
+    }
   },
 
   handler: async (
     runtime: IAgentRuntime,
     message: Memory,
-    state: State | undefined,
+    _state: State | undefined,
     _options: unknown,
     callback?: HandlerCallback
   ): Promise<ActionResult> => {
     const service = runtime.getService<MoltbookService>(PLUGIN_NAME);
     if (!service) {
-      const error = 'Moltbook service is not available';
+      const error = "Moltbook service is not available";
       if (callback) {
         await callback({ text: error, error: true });
       }
@@ -59,7 +88,7 @@ export const commentAction: Action = {
     // Check authentication
     const creds = await service.getCredentials();
     if (!creds) {
-      const error = 'Not authenticated with Moltbook.';
+      const error = "Not authenticated with Moltbook.";
       if (callback) {
         await callback({ text: error, error: true });
       }
@@ -67,8 +96,8 @@ export const commentAction: Action = {
     }
 
     // Check if account is claimed (required to comment)
-    if (creds.claimStatus !== 'claimed') {
-      const claimUrl = creds.claimUrl || 'https://moltbook.com';
+    if (creds.claimStatus !== "claimed") {
+      const claimUrl = creds.claimUrl || "https://moltbook.com";
       const error = `Cannot comment - account not yet claimed by human. Claim URL: ${claimUrl}`;
       if (callback) {
         await callback({
@@ -76,15 +105,15 @@ export const commentAction: Action = {
           error: true,
         });
       }
-      runtime.logger.warn({ claimUrl }, 'Moltbook: Attempted to comment but account not claimed');
+      runtime.logger.warn({ claimUrl }, "Moltbook: Attempted to comment but account not claimed");
       return { success: false, error: new Error(error) };
     }
 
     // Extract intent
-    const intent = extractCommentIntent(message.content.text || '');
+    const intent = extractCommentIntent(message.content.text || "");
 
     if (!intent.postId) {
-      const error = 'Please specify which post to comment on (by ID or search).';
+      const error = "Please specify which post to comment on (by ID or search).";
       if (callback) {
         await callback({ text: error });
       }
@@ -115,7 +144,7 @@ export const commentAction: Action = {
             engagementOpportunities: [],
             whatWorks: [],
             notableMoltys: [],
-            vibe: 'unknown',
+            vibe: "unknown",
             analyzedAt: Date.now(),
           };
 
@@ -155,7 +184,7 @@ export const commentAction: Action = {
         );
 
         if (!composed) {
-          const error = 'Could not compose a quality comment.';
+          const error = "Could not compose a quality comment.";
           if (callback) {
             await callback({ text: error });
           }
@@ -169,7 +198,7 @@ export const commentAction: Action = {
       const comment = await service.createComment(intent.postId, commentContent, intent.parentId);
 
       if (!comment) {
-        const error = 'Failed to create comment.';
+        const error = "Failed to create comment.";
         if (callback) {
           await callback({ text: error, error: true });
         }
@@ -191,14 +220,14 @@ export const commentAction: Action = {
           commentId: comment.id,
         },
         data: {
-          action: 'MOLTBOOK_COMMENT',
+          action: "MOLTBOOK_COMMENT",
           comment,
           post,
         },
       };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      runtime.logger.error({ error }, 'Error creating Moltbook comment');
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      runtime.logger.error({ error }, "Error creating Moltbook comment");
 
       if (callback) {
         await callback({
@@ -217,16 +246,16 @@ export const commentAction: Action = {
   examples: [
     [
       {
-        name: '{{userName}}',
+        name: "{{userName}}",
         content: {
           text: 'Comment on Moltbook post abc123: "Great point about AI collaboration!"',
         },
       },
       {
-        name: '{{agentName}}',
+        name: "{{agentName}}",
         content: {
           text: 'Commented on "Thoughts on AI Agents":\n\nGreat point about AI collaboration!',
-          actions: ['MOLTBOOK_COMMENT'],
+          actions: ["MOLTBOOK_COMMENT"],
         },
       },
     ],
