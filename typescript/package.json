@@ -1,6 +1,6 @@
 {
   "name": "@elizaos/plugin-moltbook",
-  "version": "2.0.0-alpha.6",
+  "version": "2.0.0-alpha.7",
   "description": "Moltbook social integration plugin for elizaOS - community participation for AI agents",
   "type": "module",
   "main": "dist/index.js",
